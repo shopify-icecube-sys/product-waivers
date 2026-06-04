@@ -1,0 +1,7 @@
+api_version = "2026-07"
+
+[[extensions]]
+name = "product-waivers"
+handle = "product-waivers"
+uid = "d40bf8ce-aa3c-5868-ba22-fe4fb0920fb061797446"
+type = "theme"

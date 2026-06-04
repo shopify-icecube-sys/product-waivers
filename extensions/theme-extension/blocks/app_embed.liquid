@@ -1,0 +1,213 @@
+<!-- Product Waivers App Embed -->
+
+{% comment %} Pass product metafield value to JS when on a product page {% endcomment %}
+{% if product %}
+  <script>
+    window.__pwRequiresWaiver = {{ product.metafields.custom.requires_race_waiver.value | json | default: 'false' }};
+    window.__pwProductHandle  = {{ product.handle | json }};
+  </script>
+{% else %}
+  <script>
+    window.__pwRequiresWaiver = false;
+    window.__pwProductHandle  = null;
+  </script>
+{% endif %}
+
+<!-- Waiver Modal HTML -->
+<div id="pw-waiver-modal" aria-modal="true" role="dialog" aria-labelledby="pw-waiver-title" style="display:none;">
+  <div id="pw-waiver-backdrop"></div>
+  <div id="pw-waiver-box">
+    <button id="pw-waiver-close" aria-label="Close">&times;</button>
+    <div id="pw-waiver-content">
+      <p id="pw-waiver-title">Hello</p>
+    </div>
+  </div>
+</div>
+
+<!-- Waiver Modal Styles -->
+<style>
+  #pw-waiver-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 999999;
+    align-items: center;
+    justify-content: center;
+  }
+  #pw-waiver-modal.pw-visible {
+    display: flex !important;
+  }
+  #pw-waiver-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    animation: pw-fade-in 0.2s ease;
+  }
+  #pw-waiver-box {
+    position: relative;
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 48px 56px;
+    max-width: 440px;
+    width: 90%;
+    text-align: center;
+    box-shadow:
+      0 32px 80px rgba(0, 0, 0, 0.22),
+      0 8px 24px rgba(0, 0, 0, 0.12);
+    animation: pw-slide-up 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+    z-index: 1;
+  }
+  #pw-waiver-close {
+    position: absolute;
+    top: 14px;
+    right: 18px;
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: #aaa;
+    cursor: pointer;
+    line-height: 1;
+    padding: 2px 8px;
+    border-radius: 6px;
+    transition: background 0.15s, color 0.15s;
+  }
+  #pw-waiver-close:hover {
+    background: #f0f0f0;
+    color: #222;
+  }
+  #pw-waiver-title {
+    font-size: 32px;
+    font-weight: 700;
+    color: #111;
+    margin: 0;
+    letter-spacing: -0.5px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  @keyframes pw-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes pw-slide-up {
+    from { opacity: 0; transform: translateY(28px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+</style>
+
+<!-- Waiver Intercept Script -->
+<script>
+(function () {
+  'use strict';
+
+  var modal    = document.getElementById('pw-waiver-modal');
+  var closeBtn = document.getElementById('pw-waiver-close');
+  var backdrop = document.getElementById('pw-waiver-backdrop');
+
+  /* ── show / hide ── */
+  function showModal() {
+    modal.style.display = '';
+    modal.classList.add('pw-visible');
+    document.body.style.overflow = 'hidden';
+  }
+  function hideModal() {
+    modal.classList.remove('pw-visible');
+    modal.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+
+  closeBtn.addEventListener('click', hideModal);
+  backdrop.addEventListener('click', hideModal);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') hideModal();
+  });
+
+  /* ── check if current product requires a waiver ── */
+  function requiresWaiver() {
+    return window.__pwRequiresWaiver === true ||
+           window.__pwRequiresWaiver === 'true';
+  }
+
+  /* ── intercept <form action="/cart/add"> submit ── */
+  function interceptForm(form) {
+    if (form._pwDone) return;
+    form._pwDone = true;
+
+    form.addEventListener('submit', function (e) {
+      if (!requiresWaiver()) return; // allow normal add-to-cart
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      showModal();
+    }, true); // capture phase → runs before theme JS
+  }
+
+  /* ── intercept fetch()-based cart adds (AJAX themes) ── */
+  (function patchFetch() {
+    var orig = window.fetch;
+    window.fetch = function () {
+      var req = arguments[0];
+      var url = typeof req === 'string' ? req : (req && req.url) || '';
+      if (/\/cart\/add/.test(url) && requiresWaiver()) {
+        showModal();
+        // Return a fake response so the theme JS doesn't crash
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({ status: 422, message: 'Waiver required.' }),
+            { status: 422, headers: { 'Content-Type': 'application/json' } }
+          )
+        );
+      }
+      return orig.apply(window, arguments);
+    };
+  })();
+
+  /* ── intercept XMLHttpRequest-based cart adds (older themes) ── */
+  (function patchXHR() {
+    var origOpen = XMLHttpRequest.prototype.open;
+    var origSend = XMLHttpRequest.prototype.send;
+
+    XMLHttpRequest.prototype.open = function (method, url) {
+      this._pwUrl = url || '';
+      return origOpen.apply(this, arguments);
+    };
+
+    XMLHttpRequest.prototype.send = function () {
+      if (/\/cart\/add/.test(this._pwUrl) && requiresWaiver()) {
+        showModal();
+        return; // do not send
+      }
+      return origSend.apply(this, arguments);
+    };
+  })();
+
+  /* ── attach to all add-to-cart forms (including dynamic ones) ── */
+  function attachToForms() {
+    document.querySelectorAll('form[action*="/cart/add"]').forEach(interceptForm);
+  }
+
+  new MutationObserver(attachToForms)
+    .observe(document.documentElement, { childList: true, subtree: true });
+
+  /* ── init ── */
+  function init() {
+    attachToForms();
+    console.log(
+      '[Product Waivers] Loaded. requires_waiver =',
+      window.__pwRequiresWaiver
+    );
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
+
+{% schema %}
+{
+  "name": "Product Waivers",
+  "target": "head",
+  "settings": []
+}
+{% endschema %}
