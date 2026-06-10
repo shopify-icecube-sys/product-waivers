@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
-import { useLoaderData, useRevalidator, Link } from "react-router";
+import { useLoaderData, useRevalidator, Link as RemixLink } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
+import { Page, Layout, Card, BlockStack, InlineStack, Text, Button, Banner, Box, List, Link, Icon } from "@shopify/polaris";
+import { CheckIcon } from "@shopify/polaris-icons";
 
 export const loader = async ({ request }) => {
   const { session, admin } = await authenticate.admin(request);
@@ -236,417 +238,195 @@ export default function Index() {
 
   if (!isLoaded) {
     return (
-      <s-page heading="Product Waivers">
-        <s-section>
-          <s-paragraph>Loading setup...</s-paragraph>
-        </s-section>
-      </s-page>
+      <Page title="Product Waivers">
+        <Layout>
+          <Layout.Section>
+            <Card>
+              <Text as="p">Loading setup...</Text>
+            </Card>
+          </Layout.Section>
+        </Layout>
+      </Page>
     );
   }
 
   const showBanner = appEmbedActive && !dismissedBanner;
 
   return (
-    <s-page heading="Product Waivers">
-      <style dangerouslySetInnerHTML={{
-        __html: `
-        /* Stepper Style - Black Theme */
-        .stepper-wrapper {
-          display: flex;
-          justify-content: center;
-          margin-bottom: 40px;
-          margin-top: 10px;
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        }
+    <Page title="Product Waivers" titleHidden>
+      <Layout>
+        <Layout.Section>
+          <BlockStack gap="500" inlineAlign="center">
 
-        .stepper-container {
-          display: flex;
-          align-items: center;
-          gap: 16px;
-        }
+            {/* Stepper implementation */}
+            <Box paddingBlockEnd="400">
+              <InlineStack gap="400" align="center" blockAlign="center">
+                <InlineStack gap="200" align="center">
+                  <Box
+                    background="bg-fill-inverse"
+                    borderColor="border-inverse"
+                    borderWidth="025"
+                    borderRadius="full"
+                    padding="100"
+                    minWidth="32px"
+                    minHeight="32px"
+                  >
+                    <InlineStack align="center" blockAlign="center">
+                      {currentStep > 1 ? (
+                        <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '16px', lineHeight: 1 }}>✓</span>
+                      ) : (
+                        <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '14px' }}>1</span>
+                      )}
+                    </InlineStack>
+                  </Box>
+                  <Text as="span" variant="bodyMd" fontWeight={currentStep === 1 ? "bold" : "regular"} tone={currentStep === 1 ? "base" : "subdued"}>Welcome</Text>
+                </InlineStack>
 
-        .step-item {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
+                <Box minWidth="60px" minHeight="2px" background={currentStep >= 2 ? "bg-fill-inverse" : "bg-surface-disabled"} />
 
-        .step-circle {
-          width: 32px;
-          height: 32px;
-          border-radius: 50%;
-          border: 2px solid #ccc;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 14px;
-          font-weight: bold;
-          transition: all 0.3s ease;
-          background-color: #fff;
-          color: #666;
-        }
+                <InlineStack gap="200" align="center">
+                  <Box
+                    background="bg-fill-inverse"
+                    borderColor="border-inverse"
+                    borderWidth="025"
+                    borderRadius="full"
+                    padding="100"
+                    minWidth="32px"
+                    minHeight="32px"
+                  >
+                    <InlineStack align="center" blockAlign="center">
+                      {currentStep > 2 ? (
+                        <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '16px', lineHeight: 1 }}>✓</span>
+                      ) : (
+                        <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '14px' }}>2</span>
+                      )}
+                    </InlineStack>
+                  </Box>
+                  <Text as="span" variant="bodyMd" fontWeight={currentStep === 2 ? "bold" : "regular"} tone={currentStep === 2 ? "base" : "subdued"}>Install</Text>
+                </InlineStack>
 
-        .step-circle.active {
-          border-color: #000;
-          background-color: #000;
-          color: #fff;
-        }
+                <Box minWidth="60px" minHeight="2px" background={currentStep >= 3 ? "bg-fill-inverse" : "bg-surface-disabled"} />
 
-        .step-circle.completed {
-          border-color: #000;
-          background-color: #fff;
-          color: #000;
-          font-size: 12px;
-        }
+                <InlineStack gap="200" align="center">
+                  <Box
+                    background="bg-fill-inverse"
+                    borderColor="border-inverse"
+                    borderWidth="025"
+                    borderRadius="full"
+                    padding="100"
+                    minWidth="32px"
+                    minHeight="32px"
+                  >
+                    <InlineStack align="center" blockAlign="center">
+                      <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '14px' }}>3</span>
+                    </InlineStack>
+                  </Box>
+                  <Text as="span" variant="bodyMd" fontWeight={currentStep === 3 ? "bold" : "regular"} tone={currentStep === 3 ? "base" : "subdued"}>Waiver</Text>
+                </InlineStack>
+              </InlineStack>
+            </Box>
 
-        .step-label {
-          font-size: 15px;
-          font-weight: 500;
-          color: #666;
-          transition: all 0.3s ease;
-        }
+            <Box width="100%" maxWidth="600px">
+              {currentStep === 1 && (
+                <Card>
+                  <BlockStack gap="400">
+                    <Box padding="400" background="bg-surface-secondary" borderRadius="200" borderColor="border" borderWidth="025">
+                      <Text as="p" alignment="center" variant="bodyLg">
+                        Welcome to IceCube&apos;s Product Waivers Application
+                      </Text>
+                    </Box>
+                    <InlineStack align="center">
+                      <Button variant="primary" onClick={handleContinueToStep2}>
+                        Continue
+                      </Button>
+                    </InlineStack>
+                  </BlockStack>
+                </Card>
+              )}
 
-        .step-label.active {
-          color: #000;
-          font-weight: 700;
-        }
+              {currentStep === 2 && (
+                <BlockStack gap="400">
+                  {showBanner && (
+                    <Banner tone="success" onDismiss={() => setDismissedBanner(true)}>
+                      <Text as="p">Product Waivers script is enabled</Text>
+                    </Banner>
+                  )}
 
-        .step-line {
-          height: 2px;
-          width: 60px;
-          background-color: #ccc;
-          transition: all 0.3s ease;
-        }
+                  <Card>
+                    <BlockStack gap="400">
+                      <Text as="h2" variant="headingLg">Add the app to your theme</Text>
+                      <Text as="p" tone="subdued">
+                        To show the Product Waivers widget on your store, enable the Product Waivers in your Shopify theme.
+                      </Text>
+                      <List type="number">
+                        <List.Item>To enable the Product Waivers, click the button below.</List.Item>
+                        <List.Item>Click &quot;Save&quot;</List.Item>
+                      </List>
 
-        .step-line.active {
-          background-color: #000;
-        }
+                      <InlineStack align="space-between" blockAlign="center">
+                        <InlineStack gap="300">
+                          <Button onClick={handleBackToStep1}>Back</Button>
+                          {appEmbedActive ? (
+                            <Button disabled icon={CheckIcon}>
+                              App embed enabled!
+                            </Button>
+                          ) : (
+                            <Button variant="primary" onClick={handleEnableAppEmbed}>
+                              Enable App Embed
+                            </Button>
+                          )}
+                        </InlineStack>
+                        <Button
+                          variant="primary"
+                          onClick={handleContinueToStep3}
+                          disabled={!appEmbedActive}
+                        >
+                          Continue
+                        </Button>
+                      </InlineStack>
+                    </BlockStack>
+                  </Card>
+                </BlockStack>
+              )}
 
-        /* Card Container - Matte Black Accents */
-        .wizard-card {
-          background-color: #fff;
-          border-radius: 8px;
-          border: 1px solid #e1e1e1;
-          padding: 24px;
-          max-width: 600px;
-          margin: 0 auto;
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-        }
+              {currentStep === 3 && (
+                <Card background="bg-surface-secondary">
+                  <BlockStack gap="400" inlineAlign="center">
+                    <Text as="p" variant="bodyMd" alignment="center">
+                      Please check your Form Submissions{' '}
+                      <RemixLink to="/app/submissions">
+                        <Link as="span" monochrome>here</Link>
+                      </RemixLink>
+                    </Text>
+                    <Text as="p" variant="bodyMd" alignment="center">
+                      Please check your app Setting to modify the appearance from{' '}
+                      <RemixLink to="/app/settings">
+                        <Link as="span" monochrome>here</Link>
+                      </RemixLink>
+                    </Text>
 
-        .wizard-card-header {
-          font-size: 20px;
-          font-weight: 600;
-          color: #1a1a1a;
-          margin-bottom: 12px;
-        }
+                    <Box width="100%" padding="400" background="bg-surface" borderRadius="200" borderColor="border" borderWidth="025">
+                      <BlockStack gap="300">
+                        <Text as="h3" variant="headingSm" alignment="center">How It Works:</Text>
+                        <List type="bullet">
+                          <List.Item><strong>Important:</strong> The waiver form will only appear on products that have the product metafield <Text as="span" fontWeight="bold">Requires Race Waiver</Text> set to <Text as="span" fontWeight="bold">True</Text>.</List.Item>
+                          <List.Item>When a customer tries to add a product requiring a waiver to their cart, a popup modal will appear automatically.</List.Item>
+                          <List.Item>The customer must fill out their details, vehicle information, upload necessary documents, and sign the waiver digitally.</List.Item>
+                          <List.Item>Once completed and submitted, the product is added to their cart, and the signed waiver is securely saved.</List.Item>
+                          <List.Item>You can view, manage, and download all signed waivers from the <strong>Form Submissions</strong> page.</List.Item>
+                        </List>
+                      </BlockStack>
+                    </Box>
 
-        .wizard-card-body {
-          font-size: 14px;
-          line-height: 1.5;
-          color: #4a4a4a;
-          margin-bottom: 20px;
-        }
-
-        /* Modern pill-style buttons */
-        .btn-primary {
-          background-color: #000;
-          color: #fff;
-          border: none;
-          border-radius: 4px;
-          padding: 8px 16px;
-          font-size: 14px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: background-color 0.2s ease;
-        }
-
-        .btn-primary:hover {
-          background-color: #222;
-        }
-
-        .btn-primary:disabled {
-          background-color: #e1e1e1;
-          color: #999;
-          cursor: not-allowed;
-        }
-
-        .btn-secondary {
-          background-color: #fff;
-          color: #000;
-          border: 1px solid #ccc;
-          border-radius: 4px;
-          padding: 8px 16px;
-          font-size: 14px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: background-color 0.2s ease;
-        }
-
-        .btn-secondary:hover {
-          background-color: #f6f6f6;
-        }
-
-        .btn-disabled {
-          background-color: #e5e5e5;
-          color: #888;
-          border: 1px solid #e5e5e5;
-          border-radius: 8px;
-          padding: 8px 16.5px;
-          font-size: 14px;
-          font-weight: 500;
-          cursor: not-allowed;
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          margin-right: 12px;
-        }
-
-        /* Pill-shaped Continue button like screenshot */
-        .btn-pill-continue {
-          background: #111;
-          background-image: linear-gradient(180deg, #2a2a2a, #111);
-          border: 1px solid #000;
-          border-radius: 20px;
-          padding: 8px 24px;
-          font-size: 14px;
-          font-weight: 600;
-          color: #fff;
-          cursor: pointer;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-          transition: transform 0.1s ease, box-shadow 0.1s ease;
-        }
-
-        .btn-pill-continue:hover {
-          background: #222;
-        }
-
-        .btn-pill-continue:disabled {
-          background: #f1f1f1;
-          color: #aaa;
-          border-color: #e5e5e5;
-          box-shadow: none;
-          cursor: not-allowed;
-        }
-
-        .btn-pill-back {
-          background: #fff;
-          border: 1px solid #ccc;
-          border-radius: 20px;
-          padding: 8px 24px;
-          font-size: 14px;
-          font-weight: 600;
-          color: #333;
-          cursor: pointer;
-          transition: background-color 0.2s ease, border-color 0.2s ease;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .btn-pill-back:hover {
-          background: #f6f6f6;
-          border-color: #adadad;
-        }
-
-        /* Alert Banner - Black style */
-        .alert-banner {
-          background-color: #000000;
-          border: 1px solid #000000;
-          border-radius: 6px;
-          padding: 12px 16px;
-          color: #ffffff;
-          font-size: 14px;
-          font-weight: 500;
-          margin-bottom: 20px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-        }
-
-        .alert-content {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .alert-icon {
-          color: #ffffff;
-          display: flex;
-          align-items: center;
-        }
-
-        .alert-close {
-          background: none;
-          border: none;
-          color: #ffffff;
-          cursor: pointer;
-          font-size: 18px;
-          font-weight: bold;
-          padding: 0 4px;
-          display: flex;
-          align-items: center;
-        }
-
-        /* Debug styling */
-        .debug-box {
-          margin-top: 40px;
-          padding: 16px;
-          background-color: #f6f6f7;
-          border: 1px dashed #d1d1d6;
-          border-radius: 8px;
-          font-family: monospace;
-          font-size: 12px;
-          color: #333;
-        }
-      `}} />
-
-      <div className="stepper-wrapper">
-        <div className="stepper-container">
-          {/* Step 1 */}
-          <div className="step-item">
-            <div className={`step-circle ${currentStep === 1 ? 'active' : ''} ${currentStep > 1 ? 'completed' : ''}`}>
-              {currentStep > 1 ? '✓' : '1'}
-            </div>
-            <span className={`step-label ${currentStep === 1 ? 'active' : ''}`}>Welcome</span>
-          </div>
-
-          <div className={`step-line ${currentStep > 1 ? 'active' : ''}`}></div>
-
-          {/* Step 2 */}
-          <div className="step-item">
-            <div className={`step-circle ${currentStep === 2 ? 'active' : ''} ${currentStep > 2 ? 'completed' : ''}`}>
-              {currentStep > 2 ? '✓' : '2'}
-            </div>
-            <span className={`step-label ${currentStep === 2 ? 'active' : ''}`}>Install</span>
-          </div>
-
-          <div className={`step-line ${currentStep > 2 ? 'active' : ''}`}></div>
-
-          {/* Step 3 */}
-          <div className="step-item">
-            <div className={`step-circle ${currentStep === 3 ? 'active' : ''}`}>
-              3
-            </div>
-            <span className={`step-label ${currentStep === 3 ? 'active' : ''}`}>Waiver</span>
-          </div>
-        </div>
-      </div>
-
-      <div style={{ marginTop: '20px' }}>
-        {currentStep === 1 && (
-          <div className="wizard-card">
-            <div className="wizard-card-body" style={{ fontSize: '15px', color: '#111', padding: '16px 0', border: '1px solid #f0f0f0', borderRadius: '8px', backgroundColor: '#fdfdfd', textAlign: 'center', marginBottom: '24px' }}>
-              {"Welcome to IceCube's Product Waivers Application"}
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button className="btn-pill-continue" onClick={handleContinueToStep2}>
-                Continue
-              </button>
-            </div>
-          </div>
-        )}
-
-        {currentStep === 2 && (
-          <div className="wizard-card">
-            {showBanner && (
-              <div className="alert-banner">
-                <div className="alert-content">
-                  <span className="alert-icon">
-                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <circle cx="10" cy="10" r="10" fill="white" />
-                      <path d="M6 10L9 13L14 7" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </span>
-                  <span>Product Waivers script is enabled</span>
-                </div>
-                <button className="alert-close" onClick={() => setDismissedBanner(true)}>×</button>
-              </div>
-            )}
-
-            <div className="wizard-card-header">
-              Add the app to your theme
-            </div>
-            <div className="wizard-card-body" style={{ color: '#555' }}>
-              To show the Product Waivers widget on your store, enable the Product Waivers in your Shopify theme.
-              <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px', color: '#555' }}>
-                <div>1. To enable the Product Waivers, click the button below.</div>
-                <div>2. Click {"\"Save\""}</div>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px' }}>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button className="btn-pill-back" onClick={handleBackToStep1}>
-                  Back
-                </button>
-                {appEmbedActive ? (
-                  <button className="btn-disabled" disabled>
-                    App embed enabled!
-                    <svg width="12" height="12" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginLeft: '4px' }}>
-                      <path d="M10.5 3.5H7.5M10.5 3.5V6.5M10.5 3.5L3.5 10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </button>
-                ) : (
-                  <button className="btn-primary" onClick={handleEnableAppEmbed}>
-                    Enable App Embed
-                  </button>
-                )}
-              </div>
-              <button
-                className="btn-pill-continue"
-                onClick={handleContinueToStep3}
-                disabled={!appEmbedActive}
-              >
-                Continue
-              </button>
-            </div>
-          </div>
-        )}
-
-        {currentStep === 3 && (
-          <div className="wizard-card" style={{ borderStyle: 'dashed', backgroundColor: '#fafafa', textAlign: 'center' }}>
-            <div style={{ padding: '32px 20px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
-              <p style={{ margin: 0, fontSize: '14px', color: '#444', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
-                Please check your Form Submissions{' '}
-                <Link
-                  to="/app/submissions"
-                  style={{ color: '#000', fontWeight: 700, textDecoration: 'underline', textUnderlineOffset: '3px' }}
-                >
-                  here
-                </Link>
-              </p>
-              <p style={{ margin: 0, fontSize: '14px', color: '#444', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
-                Please check your app Setting to modify the appearance from{' '}
-                <Link
-                  to="/app/settings"
-                  style={{ color: '#000', fontWeight: 700, textDecoration: 'underline', textUnderlineOffset: '3px' }}
-                >
-                  here
-                </Link>
-              </p>
-
-              <div style={{ marginTop: '24px', padding: '16px', backgroundColor: '#fff', border: '1px solid #e1e1e1', borderRadius: '8px', textAlign: 'center', width: '100%', boxSizing: 'border-box' }}>
-                <h4 style={{ margin: '0 0 12px 0', fontSize: '15px', color: '#111' }}>How it works:</h4>
-                <div style={{ display: 'inline-block', textAlign: 'left' }}>
-                  <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '14px', color: '#555', lineHeight: '1.5' }}>
-                    <li style={{ marginBottom: '8px' }}><strong>Important:</strong> The waiver form will only appear on products that have the product metafield <code>custom.requires_race_waiver</code> set to <code>true</code>.</li>
-                    <li style={{ marginBottom: '8px' }}>When a customer tries to add a product requiring a waiver to their cart, a popup modal will appear automatically.</li>
-                    <li style={{ marginBottom: '8px' }}>The customer must fill out their details, vehicle information, upload necessary documents, and sign the waiver digitally.</li>
-                    <li style={{ marginBottom: '8px' }}>Once completed and submitted, the product is added to their cart, and the signed waiver is securely saved.</li>
-                    <li>You can view, manage, and download all signed waivers from the <strong>Form Submissions</strong> page.</li>
-                  </ul>
-                </div>
-              </div>
-
-              <button className="btn-pill-back" onClick={handleBackToStep2} style={{ marginTop: '16px' }}>
-                Back
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </s-page>
+                    <Button onClick={handleBackToStep2}>Back</Button>
+                  </BlockStack>
+                </Card>
+              )}
+            </Box>
+          </BlockStack>
+        </Layout.Section>
+      </Layout>
+    </Page>
   );
 }
 
