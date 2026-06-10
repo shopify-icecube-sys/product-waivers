@@ -616,7 +616,30 @@ export default function Index() {
                   here
                 </Link>
               </p>
-              <button className="btn-pill-back" onClick={handleBackToStep2}>
+              <p style={{ margin: 0, fontSize: '14px', color: '#444', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
+                Please check your app Setting to modify the appearance from{' '}
+                <Link
+                  to="/app/settings"
+                  style={{ color: '#000', fontWeight: 700, textDecoration: 'underline', textUnderlineOffset: '3px' }}
+                >
+                  here
+                </Link>
+              </p>
+
+              <div style={{ marginTop: '24px', padding: '16px', backgroundColor: '#fff', border: '1px solid #e1e1e1', borderRadius: '8px', textAlign: 'center', width: '100%', boxSizing: 'border-box' }}>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '15px', color: '#111' }}>How it works:</h4>
+                <div style={{ display: 'inline-block', textAlign: 'left' }}>
+                  <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '14px', color: '#555', lineHeight: '1.5' }}>
+                    <li style={{ marginBottom: '8px' }}><strong>Important:</strong> The waiver form will only appear on products that have the product metafield <code>custom.requires_race_waiver</code> set to <code>true</code>.</li>
+                    <li style={{ marginBottom: '8px' }}>When a customer tries to add a product requiring a waiver to their cart, a popup modal will appear automatically.</li>
+                    <li style={{ marginBottom: '8px' }}>The customer must fill out their details, vehicle information, upload necessary documents, and sign the waiver digitally.</li>
+                    <li style={{ marginBottom: '8px' }}>Once completed and submitted, the product is added to their cart, and the signed waiver is securely saved.</li>
+                    <li>You can view, manage, and download all signed waivers from the <strong>Form Submissions</strong> page.</li>
+                  </ul>
+                </div>
+              </div>
+
+              <button className="btn-pill-back" onClick={handleBackToStep2} style={{ marginTop: '16px' }}>
                 Back
               </button>
             </div>

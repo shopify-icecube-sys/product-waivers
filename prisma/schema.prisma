@@ -86,3 +86,11 @@ model WaiverSubmission {
   @@index([shop])
   @@index([email])
 }
+
+model AppSetting {
+  id            String   @id @default(cuid())
+  shop          String   @unique
+  buttonColor   String   @default("#2563eb")
+  progressColor String   @default("#2563eb")
+}
+
