@@ -1,15 +1,17 @@
 <!-- Product Waivers App Embed -->
 
-{% comment %} Pass product metafield value to JS when on a product page {% endcomment %}
+{% comment %} Pass product metafield, app URL and shop domain to JS {% endcomment %}
 {% if product %}
   <script>
     window.__pwRequiresWaiver = {{ product.metafields.custom.requires_race_waiver.value | json | default: 'false' }};
     window.__pwProductHandle  = {{ product.handle | json }};
+    window.__pwShop           = {{ shop.permanent_domain | json }};
   </script>
 {% else %}
   <script>
     window.__pwRequiresWaiver = false;
     window.__pwProductHandle  = null;
+    window.__pwShop           = {{ shop.permanent_domain | json }};
   </script>
 {% endif %}
 
@@ -235,34 +237,36 @@
         </div>
       </div>
 
-      <!-- Step 3: Documents -->
+      <!-- Step 3: Documents (PDF only, max 10 MB) -->
       <div class="pw-panel pw-hidden" id="pw-panel-3">
         <h3 class="pw-step-title">Step 3 - Documents</h3>
+        <p class="pw-doc-hint">PDF files only &bull; Max 10 MB per file</p>
         <div class="pw-doc-row">
           <label class="pw-doc-label">Vehicle on Trailer <span class="pw-req">*</span></label>
           <div class="pw-doc-wrap">
-            <input type="file" id="pw-doc-trailer" class="pw-file-input">
+            <input type="file" id="pw-doc-trailer" class="pw-file-input" accept=".pdf,application/pdf">
             <span class="pw-err-msg" id="pw-err-doc-trailer">Please upload this document.</span>
           </div>
         </div>
         <div class="pw-doc-row">
           <label class="pw-doc-label">Proof of Non-Road Use <span class="pw-req">*</span></label>
           <div class="pw-doc-wrap">
-            <input type="file" id="pw-doc-nonroad" class="pw-file-input">
+            <input type="file" id="pw-doc-nonroad" class="pw-file-input" accept=".pdf,application/pdf">
             <span class="pw-err-msg" id="pw-err-doc-nonroad">Please upload this document.</span>
           </div>
         </div>
         <div class="pw-doc-row">
           <label class="pw-doc-label">Event Registration <span class="pw-req">*</span></label>
           <div class="pw-doc-wrap">
-            <input type="file" id="pw-doc-event" class="pw-file-input">
+            <input type="file" id="pw-doc-event" class="pw-file-input" accept=".pdf,application/pdf">
             <span class="pw-err-msg" id="pw-err-doc-event">Please upload this document.</span>
           </div>
         </div>
         <div class="pw-doc-row">
           <label class="pw-doc-label">Racing Club Membership</label>
           <div class="pw-doc-wrap">
-            <input type="file" id="pw-doc-club" class="pw-file-input">
+            <input type="file" id="pw-doc-club" class="pw-file-input" accept=".pdf,application/pdf">
+            <span class="pw-err-msg" id="pw-err-doc-club"></span>
           </div>
         </div>
         <div class="pw-actions pw-actions-split">
@@ -336,8 +340,12 @@
         <div class="pw-row">
           <div class="pw-field pw-full">
             <label class="pw-label">Digital Signature <span class="pw-req">*</span></label>
-            <input class="pw-input" type="text" id="pw-signature" placeholder="Type your full name as your signature">
-            <span class="pw-err-msg" id="pw-err-signature">This field is required.</span>
+            <div class="pw-sig-wrapper" id="pw-sig-wrapper">
+              <canvas id="pw-sig-canvas"></canvas>
+              <span class="pw-sig-hint" id="pw-sig-hint">Draw your signature here</span>
+              <button type="button" class="pw-sig-clear-btn" id="pw-sig-clear">&#x2715; Clear Signature</button>
+            </div>
+            <span class="pw-err-msg" id="pw-err-signature">Please provide your digital signature.</span>
           </div>
         </div>
         <div class="pw-cert-item">
@@ -364,6 +372,7 @@
           </div>
           <span class="pw-err-msg" id="pw-err-s3">Please select an option.</span>
         </div>
+        <span class="pw-err-msg" id="pw-submit-error" style="margin-top:8px;"></span>
         <div class="pw-actions pw-actions-split">
           <button class="pw-btn pw-btn-secondary" id="pw-prev-5">Previous</button>
           <button class="pw-btn pw-btn-submit" id="pw-submit">Submit</button>
@@ -383,9 +392,7 @@
     align-items: center;
     justify-content: center;
   }
-  #pw-waiver-modal.pw-visible {
-    display: flex !important;
-  }
+  #pw-waiver-modal.pw-visible { display: flex !important; }
   #pw-waiver-backdrop {
     position: fixed;
     inset: 0;
@@ -411,222 +418,149 @@
   }
   #pw-waiver-close {
     position: absolute;
-    top: 14px;
-    right: 18px;
-    background: none;
-    border: none;
-    font-size: 24px;
-    color: #aaa;
-    cursor: pointer;
-    line-height: 1;
-    padding: 2px 8px;
-    border-radius: 6px;
-    transition: background 0.15s, color 0.15s;
-    z-index: 2;
+    top: 14px; right: 18px;
+    background: none; border: none;
+    font-size: 24px; color: #aaa;
+    cursor: pointer; line-height: 1;
+    padding: 2px 8px; border-radius: 6px;
+    transition: background 0.15s, color 0.15s; z-index: 2;
   }
   #pw-waiver-close:hover { background: #f0f0f0; color: #222; }
 
-  /* Header */
   #pw-waiver-title {
-    font-size: 22px;
-    font-weight: 700;
-    color: #111;
-    margin: 0 0 4px;
+    font-size: 22px; font-weight: 700; color: #111;
+    margin: 0 0 4px; padding-right: 32px;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    padding-right: 32px;
   }
   .pw-subtitle {
-    font-size: 13px;
-    color: #e05c00;
-    margin: 0 0 20px;
+    font-size: 13px; color: #e05c00; margin: 0 0 20px;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   }
 
   /* Progress */
-  .pw-progress {
-    display: flex;
-    align-items: center;
-    margin-bottom: 24px;
-  }
+  .pw-progress { display: flex; align-items: center; margin-bottom: 24px; }
   .pw-prog-step {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: #d1d5db;
-    color: #fff;
-    font-size: 13px;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
+    width: 32px; height: 32px; border-radius: 50%;
+    background: #d1d5db; color: #fff;
+    font-size: 13px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: background 0.2s;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    transition: background 0.2s;
   }
-  .pw-prog-step.pw-prog-active { background: #2563eb; }
-  .pw-prog-step.pw-prog-done   { background: #2563eb; }
-  .pw-prog-line {
-    flex: 1;
-    height: 2px;
-    background: #d1d5db;
-    transition: background 0.2s;
-  }
+  .pw-prog-step.pw-prog-active, .pw-prog-step.pw-prog-done { background: #2563eb; }
+  .pw-prog-line { flex: 1; height: 2px; background: #d1d5db; transition: background 0.2s; }
   .pw-prog-line.pw-prog-done { background: #2563eb; }
 
-  /* Step panels */
+  /* Panels */
   .pw-panel { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
   .pw-hidden { display: none !important; }
-  .pw-step-title {
-    font-size: 16px;
-    font-weight: 700;
-    color: #111;
-    margin: 0 0 16px;
-  }
+  .pw-step-title { font-size: 16px; font-weight: 700; color: #111; margin: 0 0 16px; }
 
-  /* Form rows & fields */
-  .pw-row {
-    display: flex;
-    gap: 16px;
-    margin-bottom: 12px;
-  }
-  .pw-field {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-  }
+  /* Rows & fields */
+  .pw-row { display: flex; gap: 16px; margin-bottom: 12px; }
+  .pw-field { flex: 1; display: flex; flex-direction: column; min-width: 0; }
   .pw-field.pw-full { flex: 0 0 100%; width: 100%; }
-  .pw-label {
-    font-size: 13px;
-    font-weight: 500;
-    color: #374151;
-    margin-bottom: 4px;
-  }
+  .pw-label { font-size: 13px; font-weight: 500; color: #374151; margin-bottom: 4px; }
   .pw-req { color: #dc2626; }
   .pw-input, .pw-select {
-    height: 36px;
-    padding: 0 10px;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    font-size: 14px;
-    color: #111;
-    background: #fff;
-    box-sizing: border-box;
-    width: 100%;
-    outline: none;
-    transition: border-color 0.15s;
-    font-family: inherit;
+    height: 36px; padding: 0 10px;
+    border: 1px solid #d1d5db; border-radius: 6px;
+    font-size: 14px; color: #111; background: #fff;
+    box-sizing: border-box; width: 100%; outline: none;
+    transition: border-color 0.15s; font-family: inherit;
   }
   .pw-input:focus, .pw-select:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.12); }
   .pw-input.pw-error, .pw-select.pw-error { border-color: #dc2626; }
   .pw-select { appearance: auto; }
   .pw-input:disabled, .pw-select:disabled { background: #f3f4f6; color: #9ca3af; cursor: not-allowed; border-color: #e5e7eb; }
 
-  /* Inline error messages */
-  .pw-err-msg {
-    display: none;
-    color: #dc2626;
-    font-size: 12px;
-    margin-top: 3px;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  }
+  /* Inline errors */
+  .pw-err-msg { display: none; color: #dc2626; font-size: 12px; margin-top: 3px; font-family: inherit; }
   .pw-err-msg.pw-show { display: block; }
 
-  /* Document upload rows */
+  /* Documents */
+  .pw-doc-hint { font-size: 12px; color: #6b7280; margin: -8px 0 12px; }
   .pw-doc-row {
-    display: flex;
-    align-items: flex-start;
-    border: 1px dashed #d1d5db;
-    border-radius: 8px;
-    padding: 12px 16px;
-    margin-bottom: 10px;
-    gap: 16px;
+    display: flex; align-items: flex-start;
+    border: 1px dashed #d1d5db; border-radius: 8px;
+    padding: 12px 16px; margin-bottom: 10px; gap: 16px;
   }
-  .pw-doc-label {
-    font-size: 13px;
-    font-weight: 600;
-    color: #374151;
-    min-width: 180px;
-    flex-shrink: 0;
-    padding-top: 2px;
-  }
+  .pw-doc-label { font-size: 13px; font-weight: 600; color: #374151; min-width: 180px; flex-shrink: 0; padding-top: 2px; }
   .pw-doc-wrap { flex: 1; display: flex; flex-direction: column; }
   .pw-file-input { font-size: 13px; color: #374151; }
 
-  /* Compliance / cert items */
+  /* Signature pad */
+  .pw-sig-wrapper {
+    border: 1px solid #d1d5db; border-radius: 6px;
+    overflow: hidden; background: #fff; position: relative;
+  }
+  .pw-sig-wrapper.pw-error { border-color: #dc2626; }
+  #pw-sig-canvas {
+    display: block; width: 100%; height: 130px;
+    cursor: crosshair; touch-action: none;
+  }
+  .pw-sig-hint {
+    position: absolute; top: 46%; left: 50%;
+    transform: translate(-50%, -50%);
+    color: #d1d5db; font-size: 13px;
+    pointer-events: none; user-select: none;
+    font-family: inherit; white-space: nowrap;
+  }
+  .pw-sig-clear-btn {
+    display: block; width: 100%; padding: 6px;
+    background: #f9fafb; border: none;
+    border-top: 1px solid #e5e7eb;
+    font-size: 12px; color: #6b7280;
+    cursor: pointer; text-align: center;
+    font-family: inherit; transition: background 0.15s;
+  }
+  .pw-sig-clear-btn:hover { background: #f3f4f6; }
+
+  /* Compliance / cert */
   .pw-compliance-item, .pw-cert-item {
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    padding: 10px 14px;
-    margin-bottom: 8px;
+    border: 1px solid #e5e7eb; border-radius: 8px;
+    padding: 10px 14px; margin-bottom: 8px;
   }
-  .pw-compliance-text {
-    font-size: 13px;
-    font-weight: 500;
-    color: #111;
-    margin: 0 0 6px;
-  }
-  .pw-radio-group {
-    display: flex;
-    gap: 16px;
-    font-size: 13px;
-    color: #374151;
-  }
+  .pw-compliance-text { font-size: 13px; font-weight: 500; color: #111; margin: 0 0 6px; }
+  .pw-radio-group { display: flex; gap: 16px; font-size: 13px; color: #374151; }
   .pw-radio-group label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
 
-  /* Notice / warning boxes */
+  /* Notice / warning */
   .pw-notice-box {
-    background: #eff6ff;
-    border-left: 4px solid #2563eb;
-    border-radius: 6px;
-    padding: 10px 14px;
-    font-size: 13px;
-    color: #1e40af;
-    margin-bottom: 12px;
+    background: #eff6ff; border-left: 4px solid #2563eb;
+    border-radius: 6px; padding: 10px 14px;
+    font-size: 13px; color: #1e40af; margin-bottom: 12px;
   }
   .pw-warning-box {
-    background: #fef2f2;
-    border: 1px solid #fecaca;
-    border-radius: 6px;
-    padding: 10px 14px;
-    font-size: 13px;
-    color: #991b1b;
-    margin-top: 12px;
+    background: #fef2f2; border: 1px solid #fecaca;
+    border-radius: 6px; padding: 10px 14px;
+    font-size: 13px; color: #991b1b; margin-top: 12px;
   }
 
-  /* Action buttons */
-  .pw-actions {
-    margin-top: 20px;
-    display: flex;
-  }
-  .pw-actions-right { justify-content: flex-end; }
-  .pw-actions-split { justify-content: space-between; }
+  /* Buttons */
+  .pw-actions { margin-top: 20px; display: flex; }
+  .pw-actions-right  { justify-content: flex-end; }
+  .pw-actions-split  { justify-content: space-between; }
   .pw-btn {
-    padding: 8px 20px;
-    border-radius: 6px;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    border: none;
-    font-family: inherit;
-    transition: opacity 0.15s, background 0.15s;
+    padding: 8px 20px; border-radius: 6px;
+    font-size: 14px; font-weight: 500;
+    cursor: pointer; border: none; font-family: inherit;
+    transition: opacity 0.15s;
   }
   .pw-btn:hover { opacity: 0.88; }
+  .pw-btn:disabled { opacity: 0.55; cursor: not-allowed; }
   .pw-btn-primary   { background: #2563eb; color: #fff; }
   .pw-btn-secondary { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; }
   .pw-btn-submit    { background: #16a34a; color: #fff; }
 
-  @keyframes pw-fade-in {
-    from { opacity: 0; }
-    to   { opacity: 1; }
-  }
+  @keyframes pw-fade-in { from { opacity:0; } to { opacity:1; } }
   @keyframes pw-slide-up {
-    from { opacity: 0; transform: translateY(28px) scale(0.96); }
-    to   { opacity: 1; transform: translateY(0) scale(1); }
+    from { opacity:0; transform: translateY(28px) scale(0.96); }
+    to   { opacity:1; transform: translateY(0)    scale(1);    }
   }
 </style>
 
-<!-- Waiver Intercept Script -->
+<!-- Waiver Script -->
 <script>
 (function () {
   'use strict';
@@ -636,9 +570,9 @@
   var backdrop = document.getElementById('pw-waiver-backdrop');
 
   /* ── pending cart-add state ── */
-  var pendingForm   = null;
-  var pendingFetch  = null;
-  var pendingXhr    = null;
+  var pendingForm  = null;
+  var pendingFetch = null;
+  var pendingXhr   = null;
 
   /* ── show / hide ── */
   function showModal() {
@@ -653,34 +587,26 @@
     document.body.style.overflow = '';
   }
 
-  closeBtn.addEventListener('click', function () {
+  function cancelAndClose() {
     pendingForm = null; pendingFetch = null; pendingXhr = null;
     hideModal();
-  });
-  backdrop.addEventListener('click', function () {
-    pendingForm = null; pendingFetch = null; pendingXhr = null;
-    hideModal();
-  });
-  document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape') {
-      pendingForm = null; pendingFetch = null; pendingXhr = null;
-      hideModal();
-    }
-  });
+  }
+  closeBtn.addEventListener('click', cancelAndClose);
+  backdrop.addEventListener('click', cancelAndClose);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') cancelAndClose(); });
 
-  /* ── check if current product requires a waiver ── */
+  /* ── waiver check ── */
   function requiresWaiver() {
-    return window.__pwRequiresWaiver === true ||
-           window.__pwRequiresWaiver === 'true';
+    return window.__pwRequiresWaiver === true || window.__pwRequiresWaiver === 'true';
   }
 
   /* ── step navigation ── */
   function goToStep(n) {
     for (var i = 1; i <= 5; i++) {
-      var panel = document.getElementById('pw-panel-' + i);
-      if (panel) {
-        if (i === n) panel.classList.remove('pw-hidden');
-        else         panel.classList.add('pw-hidden');
+      var p = document.getElementById('pw-panel-' + i);
+      if (p) {
+        if (i === n) p.classList.remove('pw-hidden');
+        else         p.classList.add('pw-hidden');
       }
     }
     updateProgress(n);
@@ -700,29 +626,29 @@
     });
   }
 
-  /* ── validation helpers ── */
-  function val(id)        { return ((document.getElementById(id) || {}).value || '').trim(); }
-  function checked(name)  { return !!document.querySelector('input[name="' + name + '"]:checked'); }
-  function fileChosen(id) { var el = document.getElementById(id); return el && el.files && el.files.length > 0; }
+  /* ── helpers ── */
+  function val(id)       { return ((document.getElementById(id) || {}).value || '').trim(); }
+  function checked(name) { return !!document.querySelector('input[name="' + name + '"]:checked'); }
+  function getRadioVal(name) {
+    var el = document.querySelector('input[name="' + name + '"]:checked');
+    return el ? el.value : '';
+  }
+  function getFileName(id) {
+    var el = document.getElementById(id);
+    return el && el.files && el.files[0] ? el.files[0].name : '';
+  }
 
-  /* Show inline error with optional custom message */
+  /* ── error display ── */
   function fieldErr(inputId, msg) {
     var input = document.getElementById(inputId);
     if (input) input.classList.add('pw-error');
-    var span = document.getElementById('pw-err-' + inputId.slice(3)); // strip leading "pw-"
+    var span = document.getElementById('pw-err-' + inputId.slice(3));
     if (span) { span.textContent = msg; span.classList.add('pw-show'); }
   }
-  /* Show error on a non-input element (radio groups, file inputs) */
   function spanErr(errId, msg) {
     var span = document.getElementById(errId);
     if (span) { span.textContent = msg; span.classList.add('pw-show'); }
   }
-  function clearErrors() {
-    document.querySelectorAll('.pw-error').forEach(function (el) { el.classList.remove('pw-error'); });
-    document.querySelectorAll('.pw-err-msg.pw-show').forEach(function (el) { el.classList.remove('pw-show'); });
-  }
-
-  /* Clear error for a single input field as the user fixes it */
   function clearFieldErr(inputId) {
     var input = document.getElementById(inputId);
     if (input) input.classList.remove('pw-error');
@@ -733,75 +659,80 @@
     var span = document.getElementById(errId);
     if (span) span.classList.remove('pw-show');
   }
+  function clearErrors() {
+    document.querySelectorAll('.pw-error').forEach(function (el) { el.classList.remove('pw-error'); });
+    document.querySelectorAll('.pw-err-msg.pw-show').forEach(function (el) { el.classList.remove('pw-show'); });
+  }
+
+  /* ── PDF file validation ── */
+  var MAX_MB = 10;
+  function validateFile(input, required) {
+    if (!input || !input.files || input.files.length === 0) {
+      return required ? 'required' : null;
+    }
+    var file = input.files[0];
+    var isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    if (!isPdf)                           return 'type';
+    if (file.size > MAX_MB * 1024 * 1024) return 'size';
+    return null;
+  }
 
   /* ── format patterns ── */
-  var RE_NAME  = /^[A-Za-z\s'\-\.]+$/;           // letters, spaces, hyphens, apostrophes, dots
-  var RE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/; // basic email
-  /* US phone: optional +1, then (NXX) NXX-XXXX or NXX-NXX-XXXX or NXX NXX XXXX */
+  var RE_NAME  = /^[A-Za-z\s'\-.]+$/;
+  var RE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
   var RE_PHONE = /^(\+1[\s.\-]?)?\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}$/;
-  var RE_ZIP   = /^\d{5}(-\d{4})?$/;              // 5-digit or ZIP+4
+  var RE_ZIP   = /^\d{5}(-\d{4})?$/;
 
+  /* ── step validation ── */
   function validateStep(n) {
     clearErrors();
     var ok = true;
     var v;
 
     if (n === 1) {
-      /* Full Legal Name — letters only */
       v = val('pw-full-name');
-      if (!v) {
-        fieldErr('pw-full-name', 'This field is required.'); ok = false;
-      } else if (!RE_NAME.test(v)) {
-        fieldErr('pw-full-name', 'Please enter letters only (no numbers or special characters).'); ok = false;
-      }
+      if (!v)                       { fieldErr('pw-full-name', 'This field is required.'); ok = false; }
+      else if (!RE_NAME.test(v))    { fieldErr('pw-full-name', 'Please enter letters only (no numbers).'); ok = false; }
 
-      /* Email */
       v = val('pw-email');
-      if (!v) {
-        fieldErr('pw-email', 'This field is required.'); ok = false;
-      } else if (!RE_EMAIL.test(v)) {
-        fieldErr('pw-email', 'Please enter a valid email address (e.g. john@example.com).'); ok = false;
-      }
+      if (!v)                       { fieldErr('pw-email', 'This field is required.'); ok = false; }
+      else if (!RE_EMAIL.test(v))   { fieldErr('pw-email', 'Please enter a valid email address.'); ok = false; }
 
-      /* Phone — US format */
       v = val('pw-phone');
-      if (!v) {
-        fieldErr('pw-phone', 'This field is required.'); ok = false;
-      } else if (!RE_PHONE.test(v)) {
-        fieldErr('pw-phone', 'Please enter a valid US phone number (e.g. (555) 555-5555).'); ok = false;
-      }
+      if (!v)                       { fieldErr('pw-phone', 'This field is required.'); ok = false; }
+      else if (!RE_PHONE.test(v))   { fieldErr('pw-phone', 'Please enter a valid US phone number (e.g. (555) 555-5555).'); ok = false; }
 
-      /* Driver\'s License */
       if (!val('pw-license')) { fieldErr('pw-license', 'This field is required.'); ok = false; }
-
-      /* Street Address */
       if (!val('pw-address')) { fieldErr('pw-address', 'This field is required.'); ok = false; }
+      if (!val('pw-city'))    { fieldErr('pw-city',    'This field is required.'); ok = false; }
+      if (!val('pw-state'))   { fieldErr('pw-state',   'Please select a state.');  ok = false; }
 
-      /* City */
-      if (!val('pw-city')) { fieldErr('pw-city', 'This field is required.'); ok = false; }
-
-      /* State */
-      if (!val('pw-state')) { fieldErr('pw-state', 'Please select a state.'); ok = false; }
-
-      /* ZIP — US format */
       v = val('pw-zip');
-      if (!v) {
-        fieldErr('pw-zip', 'This field is required.'); ok = false;
-      } else if (!RE_ZIP.test(v)) {
-        fieldErr('pw-zip', 'Please enter a valid US ZIP code (e.g. 90210 or 90210-1234).'); ok = false;
-      }
+      if (!v)                       { fieldErr('pw-zip', 'This field is required.'); ok = false; }
+      else if (!RE_ZIP.test(v))     { fieldErr('pw-zip', 'Please enter a valid US ZIP code (e.g. 90210).'); ok = false; }
 
     } else if (n === 2) {
-      if (!val('pw-year'))  { fieldErr('pw-year',  'This field is required.'); ok = false; }
-      if (!val('pw-make'))  { fieldErr('pw-make',  'This field is required.'); ok = false; }
-      if (!val('pw-model')) { fieldErr('pw-model', 'This field is required.'); ok = false; }
-      if (!val('pw-color')) { fieldErr('pw-color', 'This field is required.'); ok = false; }
+      if (!val('pw-year'))  { fieldErr('pw-year',  'Please select a year.');  ok = false; }
+      if (!val('pw-make'))  { fieldErr('pw-make',  'Please select a make.');  ok = false; }
+      if (!val('pw-model')) { fieldErr('pw-model', 'Please select a model.'); ok = false; }
+      if (!val('pw-color')) { fieldErr('pw-color', 'Please select a color.'); ok = false; }
       if (!val('pw-vin'))   { fieldErr('pw-vin',   'This field is required.'); ok = false; }
 
     } else if (n === 3) {
-      if (!fileChosen('pw-doc-trailer')) { spanErr('pw-err-doc-trailer', 'Please upload this document.'); ok = false; }
-      if (!fileChosen('pw-doc-nonroad')) { spanErr('pw-err-doc-nonroad', 'Please upload this document.'); ok = false; }
-      if (!fileChosen('pw-doc-event'))   { spanErr('pw-err-doc-event',   'Please upload this document.'); ok = false; }
+      var docFields = [
+        { id: 'pw-doc-trailer', required: true  },
+        { id: 'pw-doc-nonroad', required: true  },
+        { id: 'pw-doc-event',   required: true  },
+        { id: 'pw-doc-club',    required: false },
+      ];
+      docFields.forEach(function (f) {
+        var input  = document.getElementById(f.id);
+        var errId  = 'pw-err-' + f.id.slice(3);
+        var result = validateFile(input, f.required);
+        if      (result === 'required') { spanErr(errId, 'Please upload this document.');          ok = false; }
+        else if (result === 'type')     { spanErr(errId, 'Only PDF files are accepted.');           ok = false; }
+        else if (result === 'size')     { spanErr(errId, 'File must be under ' + MAX_MB + 'MB.');  ok = false; }
+      });
 
     } else if (n === 4) {
       if (!checked('pw-c1')) { spanErr('pw-err-c1', 'Please select an option.'); ok = false; }
@@ -812,7 +743,15 @@
     } else if (n === 5) {
       if (!val('pw-printed-name')) { fieldErr('pw-printed-name', 'This field is required.'); ok = false; }
       if (!val('pw-date'))         { fieldErr('pw-date',         'This field is required.'); ok = false; }
-      if (!val('pw-signature'))    { fieldErr('pw-signature',    'This field is required.'); ok = false; }
+
+      /* Canvas signature */
+      if (window.__pwSigEmpty !== false) {
+        var wrapper = document.getElementById('pw-sig-wrapper');
+        if (wrapper) wrapper.classList.add('pw-error');
+        spanErr('pw-err-signature', 'Please provide your digital signature.');
+        ok = false;
+      }
+
       if (!checked('pw-s1')) { spanErr('pw-err-s1', 'Please select an option.'); ok = false; }
       if (!checked('pw-s2')) { spanErr('pw-err-s2', 'Please select an option.'); ok = false; }
       if (!checked('pw-s3')) { spanErr('pw-err-s3', 'Please select an option.'); ok = false; }
@@ -821,94 +760,69 @@
     return ok;
   }
 
-  /* ── live error clearing — fires as user fixes each field ── */
-  function bindLiveValidation() {
-    /* Step 1 text / email / tel inputs */
-    ['pw-full-name','pw-email','pw-phone','pw-license','pw-address','pw-city','pw-zip'].forEach(function (id) {
+  /* ── collect all form data for API ── */
+  /* Read a file input as a base64 data URL (returns a Promise) */
+  function readFileAsBase64(id) {
+    return new Promise(function (resolve) {
       var el = document.getElementById(id);
-      if (el) el.addEventListener('input', function () { clearFieldErr(id); });
-    });
-    var stateEl = document.getElementById('pw-state');
-    if (stateEl) stateEl.addEventListener('change', function () { clearFieldErr('pw-state'); });
-
-    /* Step 2 — Make select: clear error + enable/disable Model */
-    var makeEl    = document.getElementById('pw-make');
-    var modelEl   = document.getElementById('pw-model');
-    if (makeEl) {
-      makeEl.addEventListener('change', function () {
-        clearFieldErr('pw-make');
-        if (modelEl) {
-          if (makeEl.value) {
-            modelEl.disabled = false;
-          } else {
-            modelEl.disabled = true;
-            modelEl.value = '';
-            clearFieldErr('pw-model');
-          }
-        }
-      });
-    }
-
-    /* Step 2 — Model select: clear error on change */
-    if (modelEl) modelEl.addEventListener('change', function () { clearFieldErr('pw-model'); });
-    var colorEl = document.getElementById('pw-color');
-    if (colorEl) colorEl.addEventListener('change', function () { clearFieldErr('pw-color'); });
-    var vinEl = document.getElementById('pw-vin');
-    if (vinEl) vinEl.addEventListener('input', function () { clearFieldErr('pw-vin'); });
-
-    /* Step 2 year select — clear its own error AND enable/disable Make */
-    var yearSel   = document.getElementById('pw-year');
-    var makeInput = document.getElementById('pw-make');
-    if (yearSel) {
-      yearSel.addEventListener('change', function () {
-        clearFieldErr('pw-year');
-        var modelSel = document.getElementById('pw-model');
-      if (makeInput) {
-          if (yearSel.value) {
-            makeInput.disabled = false;
-          } else {
-            makeInput.disabled = true;
-            makeInput.value = '';
-            clearFieldErr('pw-make');
-            /* also reset Model when Year is cleared */
-            if (modelSel) {
-              modelSel.disabled = true;
-              modelSel.value = '';
-              clearFieldErr('pw-model');
-            }
-          }
-        }
-      });
-    }
-
-    /* Step 3 file inputs */
-    ['pw-doc-trailer','pw-doc-nonroad','pw-doc-event'].forEach(function (id) {
-      var el = document.getElementById(id);
-      if (el) el.addEventListener('change', function () { clearSpanErr('pw-err-' + id.slice(3)); });
-    });
-
-    /* Step 4 compliance radios */
-    ['pw-c1','pw-c2','pw-c3','pw-c4'].forEach(function (name) {
-      document.querySelectorAll('input[name="' + name + '"]').forEach(function (r) {
-        r.addEventListener('change', function () { clearSpanErr('pw-err-' + name.slice(3)); });
-      });
-    });
-
-    /* Step 5 text / date inputs */
-    ['pw-printed-name','pw-date','pw-signature'].forEach(function (id) {
-      var el = document.getElementById(id);
-      if (el) el.addEventListener('input', function () { clearFieldErr(id); });
-    });
-
-    /* Step 5 certification radios */
-    ['pw-s1','pw-s2','pw-s3'].forEach(function (name) {
-      document.querySelectorAll('input[name="' + name + '"]').forEach(function (r) {
-        r.addEventListener('change', function () { clearSpanErr('pw-err-' + name.slice(3)); });
-      });
+      if (!el || !el.files || !el.files[0]) { resolve(''); return; }
+      var reader = new FileReader();
+      reader.onload  = function (e) { resolve(e.target.result); };
+      reader.onerror = function ()  { resolve(''); };
+      reader.readAsDataURL(el.files[0]);
     });
   }
 
-  /* ── wire up step buttons ── */
+  /* Returns a Promise that resolves to the full form payload */
+  function collectFormData() {
+    return Promise.all([
+      readFileAsBase64('pw-doc-trailer'),
+      readFileAsBase64('pw-doc-nonroad'),
+      readFileAsBase64('pw-doc-event'),
+      readFileAsBase64('pw-doc-club'),
+    ]).then(function (contents) {
+      return {
+        shop:              window.__pwShop          || '',
+        productHandle:     window.__pwProductHandle || '',
+        fullName:          val('pw-full-name'),
+        email:             val('pw-email'),
+        phone:             val('pw-phone'),
+        driversLicense:    val('pw-license'),
+        streetAddress:     val('pw-address'),
+        city:              val('pw-city'),
+        state:             val('pw-state'),
+        zip:               val('pw-zip'),
+        raceClub:          val('pw-race-club'),
+        vehicleYear:       val('pw-year'),
+        vehicleMake:       val('pw-make'),
+        vehicleModel:      val('pw-model'),
+        vehicleColor:      val('pw-color'),
+        vin:               val('pw-vin'),
+        dmvRegistered:     val('pw-dmv'),
+        licensedForRoad:   val('pw-licensed'),
+        docTrailerName:    getFileName('pw-doc-trailer'),
+        docNonRoadName:    getFileName('pw-doc-nonroad'),
+        docEventName:      getFileName('pw-doc-event'),
+        docClubName:       getFileName('pw-doc-club'),
+        docTrailerContent: contents[0],
+        docNonRoadContent: contents[1],
+        docEventContent:   contents[2],
+        docClubContent:    contents[3],
+        racingUseOnly:     getRadioVal('pw-c1'),
+        notOnPublicRoads:  getRadioVal('pw-c2'),
+        notCarbApproved:   getRadioVal('pw-c3'),
+        notEpaCertified:   getRadioVal('pw-c4'),
+        printedName:       val('pw-printed-name'),
+        signatureDate:     val('pw-date'),
+        digitalSignature:  window.__pwGetSignature ? window.__pwGetSignature() : '',
+        certCarbApproved:  getRadioVal('pw-s1'),
+        certEpaCertified:  getRadioVal('pw-s2'),
+        certPerjury:       getRadioVal('pw-s3'),
+      };
+    });
+  }
+
+  /* ── step buttons ── */
   function bindStepButtons() {
     document.getElementById('pw-next-1').addEventListener('click', function () { if (validateStep(1)) goToStep(2); });
     document.getElementById('pw-prev-2').addEventListener('click', function () { goToStep(1); });
@@ -921,13 +835,212 @@
     document.getElementById('pw-submit').addEventListener('click', handleSubmit);
   }
 
-  /* ── form submission & cart-add replay ── */
+  /* ── form submission → save to DB → add to cart ── */
   function handleSubmit() {
     if (!validateStep(5)) return;
-    hideModal();
-    replayCartAdd();
+
+    var submitBtn = document.getElementById('pw-submit');
+    var errEl     = document.getElementById('pw-submit-error');
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Submitting…'; }
+    if (errEl)     errEl.classList.remove('pw-show');
+
+    /* App Proxy URL — same origin as storefront, no CORS needed */
+    var apiUrl = '/apps/product-waivers/api/waiver';
+    console.log('[Product Waivers] Submitting to:', apiUrl);
+
+    collectFormData().then(function (data) {
+      return fetch(apiUrl, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(data),
+      });
+    })
+    .then(function (res) {
+      if (!res.ok) throw new Error('Server error (' + res.status + ')');
+      return res.json();
+    })
+    .then(function (result) {
+      if (result.success) {
+        hideModal();
+        replayCartAdd();
+      } else {
+        console.error('[Product Waivers] Submission failed:', result.error);
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit'; }
+        if (errEl) { errEl.textContent = 'Submission failed: ' + (result.error || 'please try again.'); errEl.classList.add('pw-show'); }
+      }
+    })
+    .catch(function (err) {
+      console.error('[Product Waivers] Error:', err.message, '| URL:', apiUrl);
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit'; }
+      if (errEl) { errEl.textContent = 'Submission failed: ' + err.message + '. Please try again.'; errEl.classList.add('pw-show'); }
+    });
   }
 
+  /* ── live error clearing ── */
+  function bindLiveValidation() {
+    /* Step 1 */
+    ['pw-full-name','pw-email','pw-phone','pw-license','pw-address','pw-city','pw-zip'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('input', function () { clearFieldErr(id); });
+    });
+    var stateEl = document.getElementById('pw-state');
+    if (stateEl) stateEl.addEventListener('change', function () { clearFieldErr('pw-state'); });
+
+    /* Step 2 – Year controls Make, Make controls Model */
+    var yearSel   = document.getElementById('pw-year');
+    var makeEl    = document.getElementById('pw-make');
+    var modelEl   = document.getElementById('pw-model');
+
+    if (yearSel) {
+      yearSel.addEventListener('change', function () {
+        clearFieldErr('pw-year');
+        if (makeEl) {
+          if (yearSel.value) {
+            makeEl.disabled = false;
+          } else {
+            makeEl.disabled = true; makeEl.value = ''; clearFieldErr('pw-make');
+            if (modelEl) { modelEl.disabled = true; modelEl.value = ''; clearFieldErr('pw-model'); }
+          }
+        }
+      });
+    }
+    if (makeEl) {
+      makeEl.addEventListener('change', function () {
+        clearFieldErr('pw-make');
+        if (modelEl) {
+          if (makeEl.value) { modelEl.disabled = false; }
+          else { modelEl.disabled = true; modelEl.value = ''; clearFieldErr('pw-model'); }
+        }
+      });
+    }
+    if (modelEl) modelEl.addEventListener('change', function () { clearFieldErr('pw-model'); });
+
+    var colorEl = document.getElementById('pw-color');
+    if (colorEl) colorEl.addEventListener('change', function () { clearFieldErr('pw-color'); });
+    var vinEl = document.getElementById('pw-vin');
+    if (vinEl) vinEl.addEventListener('input', function () { clearFieldErr('pw-vin'); });
+
+    /* Step 3 – validate type & size on selection */
+    ['pw-doc-trailer','pw-doc-nonroad','pw-doc-event'].forEach(function (id) {
+      var el    = document.getElementById(id);
+      var errId = 'pw-err-' + id.slice(3);
+      if (el) {
+        el.addEventListener('change', function () {
+          var result = validateFile(el, true);
+          if      (!result)               clearSpanErr(errId);
+          else if (result === 'type')     spanErr(errId, 'Only PDF files are accepted.');
+          else if (result === 'size')     spanErr(errId, 'File must be under ' + MAX_MB + 'MB.');
+        });
+      }
+    });
+    /* Optional club doc — only validate type/size if a file is chosen */
+    var clubEl = document.getElementById('pw-doc-club');
+    if (clubEl) {
+      clubEl.addEventListener('change', function () {
+        var result = validateFile(clubEl, false);
+        if      (!result)             clearSpanErr('pw-err-doc-club');
+        else if (result === 'type')   spanErr('pw-err-doc-club', 'Only PDF files are accepted.');
+        else if (result === 'size')   spanErr('pw-err-doc-club', 'File must be under ' + MAX_MB + 'MB.');
+      });
+    }
+
+    /* Step 4 radios */
+    ['pw-c1','pw-c2','pw-c3','pw-c4'].forEach(function (name) {
+      document.querySelectorAll('input[name="' + name + '"]').forEach(function (r) {
+        r.addEventListener('change', function () { clearSpanErr('pw-err-' + name.slice(3)); });
+      });
+    });
+
+    /* Step 5 */
+    ['pw-printed-name','pw-date'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('input', function () { clearFieldErr(id); });
+    });
+    ['pw-s1','pw-s2','pw-s3'].forEach(function (name) {
+      document.querySelectorAll('input[name="' + name + '"]').forEach(function (r) {
+        r.addEventListener('change', function () { clearSpanErr('pw-err-' + name.slice(3)); });
+      });
+    });
+  }
+
+  /* ── canvas signature pad ── */
+  function initSignaturePad() {
+    var canvas  = document.getElementById('pw-sig-canvas');
+    var hint    = document.getElementById('pw-sig-hint');
+    var wrapper = document.getElementById('pw-sig-wrapper');
+    if (!canvas) return;
+
+    var ctx     = canvas.getContext('2d');
+    var drawing = false;
+    window.__pwSigEmpty = true;
+
+    /* Fixed logical resolution — safe to set even while modal is hidden */
+    canvas.width  = 600;
+    canvas.height = 130;
+    ctx.strokeStyle = '#111';
+    ctx.lineWidth   = 2;
+    ctx.lineCap     = 'round';
+    ctx.lineJoin    = 'round';
+
+    /* Scale mouse/touch coords from CSS pixels → canvas logical pixels */
+    function getXY(e) {
+      var rect   = canvas.getBoundingClientRect();
+      var src    = e.touches ? e.touches[0] : e;
+      var scaleX = canvas.width  / (rect.width  || canvas.width);
+      var scaleY = canvas.height / (rect.height || canvas.height);
+      return {
+        x: (src.clientX - rect.left) * scaleX,
+        y: (src.clientY - rect.top)  * scaleY,
+      };
+    }
+    function onStart(e) {
+      e.preventDefault(); drawing = true;
+      var p = getXY(e); ctx.beginPath(); ctx.moveTo(p.x, p.y);
+    }
+    function onMove(e) {
+      if (!drawing) return;
+      e.preventDefault();
+      var p = getXY(e); ctx.lineTo(p.x, p.y); ctx.stroke();
+      if (window.__pwSigEmpty) {
+        window.__pwSigEmpty = false;
+        if (hint)    hint.style.display = 'none';
+        if (wrapper) wrapper.classList.remove('pw-error');
+        clearSpanErr('pw-err-signature');
+      }
+    }
+    function onEnd() { drawing = false; }
+
+    canvas.addEventListener('mousedown',  onStart);
+    canvas.addEventListener('mousemove',  onMove);
+    canvas.addEventListener('mouseup',    onEnd);
+    canvas.addEventListener('mouseleave', onEnd);
+    canvas.addEventListener('touchstart', onStart, { passive: false });
+    canvas.addEventListener('touchmove',  onMove,  { passive: false });
+    canvas.addEventListener('touchend',   onEnd);
+
+    document.getElementById('pw-sig-clear').addEventListener('click', function () {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      window.__pwSigEmpty = true;
+      if (hint) hint.style.display = '';
+    });
+
+    window.__pwGetSignature = function () {
+      return window.__pwSigEmpty ? '' : canvas.toDataURL('image/png');
+    };
+  }
+
+  /* ── populate Year dropdown 2026 → 1952 ── */
+  function populateYears() {
+    var sel = document.getElementById('pw-year');
+    if (!sel) return;
+    for (var y = 2026; y >= 1952; y--) {
+      var opt = document.createElement('option');
+      opt.value = String(y); opt.textContent = String(y);
+      sel.appendChild(opt);
+    }
+  }
+
+  /* ── cart-add replay after successful submission ── */
   function replayCartAdd() {
     if (pendingFetch) {
       var args = pendingFetch; pendingFetch = null;
@@ -949,20 +1062,19 @@
     }
   }
 
-  /* ── intercept <form action="/cart/add"> submit ── */
+  /* ── intercept form submits ── */
   function interceptForm(form) {
     if (form._pwDone) return;
     form._pwDone = true;
     form.addEventListener('submit', function (e) {
       if (window.__pwWaiverDone || !requiresWaiver()) return;
-      e.preventDefault();
-      e.stopImmediatePropagation();
+      e.preventDefault(); e.stopImmediatePropagation();
       pendingForm = form; pendingFetch = null; pendingXhr = null;
       showModal();
     }, true);
   }
 
-  /* ── intercept fetch()-based cart adds ── */
+  /* ── intercept fetch ── */
   var origFetch = window.fetch;
   (function patchFetch() {
     window.fetch = function () {
@@ -983,7 +1095,7 @@
     };
   })();
 
-  /* ── intercept XMLHttpRequest-based cart adds ── */
+  /* ── intercept XHR ── */
   var origXhrOpen = XMLHttpRequest.prototype.open;
   var origXhrSend = XMLHttpRequest.prototype.send;
   (function patchXHR() {
@@ -995,36 +1107,23 @@
       if (/\/cart\/add/.test(this._pwUrl) && requiresWaiver() && !window.__pwWaiverDone) {
         pendingXhr = { method: this._pwMethod, url: this._pwUrl, body: body };
         pendingForm = null; pendingFetch = null;
-        showModal();
-        return;
+        showModal(); return;
       }
       return origXhrSend.apply(this, arguments);
     };
   })();
 
-  /* ── attach to all add-to-cart forms (including dynamic ones) ── */
+  /* ── attach to add-to-cart forms ── */
   function attachToForms() {
     document.querySelectorAll('form[action*="/cart/add"]').forEach(interceptForm);
   }
-
   new MutationObserver(attachToForms)
     .observe(document.documentElement, { childList: true, subtree: true });
-
-  /* ── populate Year dropdown 2026 → 1952 ── */
-  function populateYears() {
-    var sel = document.getElementById('pw-year');
-    if (!sel) return;
-    for (var y = 2026; y >= 1952; y--) {
-      var opt = document.createElement('option');
-      opt.value = String(y);
-      opt.textContent = String(y);
-      sel.appendChild(opt);
-    }
-  }
 
   /* ── init ── */
   function init() {
     populateYears();
+    initSignaturePad();
     bindStepButtons();
     bindLiveValidation();
     attachToForms();

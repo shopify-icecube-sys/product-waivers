@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useLoaderData, useRevalidator } from "react-router";
+import { useLoaderData, useRevalidator, Link } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 
@@ -606,7 +606,16 @@ export default function Index() {
 
         {currentStep === 3 && (
           <div className="wizard-card" style={{ borderStyle: 'dashed', backgroundColor: '#fafafa', textAlign: 'center' }}>
-            <div style={{ padding: '40px 20px', display: 'flex', justifyContent: 'center' }}>
+            <div style={{ padding: '32px 20px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+              <p style={{ margin: 0, fontSize: '14px', color: '#444', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
+                Please check your Form Submissions{' '}
+                <Link
+                  to="/app/submissions"
+                  style={{ color: '#000', fontWeight: 700, textDecoration: 'underline', textUnderlineOffset: '3px' }}
+                >
+                  here
+                </Link>
+              </p>
               <button className="btn-pill-back" onClick={handleBackToStep2}>
                 Back
               </button>

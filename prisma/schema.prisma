@@ -32,3 +32,57 @@ model Session {
   refreshToken        String?
   refreshTokenExpires DateTime?
 }
+
+model WaiverSubmission {
+  id               String   @id @default(cuid())
+  createdAt        DateTime @default(now())
+  shop             String
+  productHandle    String
+
+  // Step 1 – Customer Information
+  fullName         String
+  email            String
+  phone            String
+  driversLicense   String
+  streetAddress    String
+  city             String
+  state            String
+  zip              String
+  raceClub         String?
+
+  // Step 2 – Vehicle Information
+  vehicleYear      String
+  vehicleMake      String
+  vehicleModel     String
+  vehicleColor     String
+  vin              String
+  dmvRegistered    String?
+  licensedForRoad  String?
+
+  // Step 3 – Document file names + base64 content for download
+  docTrailerName    String
+  docNonRoadName    String
+  docEventName      String
+  docClubName       String?
+  docTrailerContent String?
+  docNonRoadContent String?
+  docEventContent   String?
+  docClubContent    String?
+
+  // Step 4 – Compliance
+  racingUseOnly     String
+  notOnPublicRoads  String
+  notCarbApproved   String
+  notEpaCertified   String
+
+  // Step 5 – Signature & Certification
+  printedName       String
+  signatureDate     String
+  digitalSignature  String  // base64 PNG data URL
+  certCarbApproved  String
+  certEpaCertified  String
+  certPerjury       String
+
+  @@index([shop])
+  @@index([email])
+}
