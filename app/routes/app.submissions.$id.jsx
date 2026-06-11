@@ -104,6 +104,7 @@ export default function SubmissionDetail() {
               <Field label="State" value={s.state} />
               <Field label="ZIP"   value={s.zip} />
               {s.raceClub && <Box gridColumn="span 2"><Field label="Race Club / League" value={s.raceClub} /></Box>}
+              {s.ipAddress && <Box gridColumn="span 2"><Field label="IP Address" value={s.ipAddress} /></Box>}
             </InlineGrid>
           </BlockStack>
         </Card>

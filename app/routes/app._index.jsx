@@ -1,12 +1,23 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLoaderData, useRevalidator, Link as RemixLink } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
-import { Page, Layout, Card, BlockStack, InlineStack, Text, Button, Banner, Box, List, Link, Icon } from "@shopify/polaris";
+import { Page, Layout, Card, BlockStack, InlineStack, Text, Button, Banner, Box, List, Link } from "@shopify/polaris";
 import { CheckIcon } from "@shopify/polaris-icons";
+
+// Server-side per-shop cache — avoids hitting Shopify's Themes API on every page load
+const embedCache = new Map(); // shop -> { data, ts }
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 export const loader = async ({ request }) => {
   const { session, admin } = await authenticate.admin(request);
+  const shop = session.shop;
+
+  const cached = embedCache.get(shop);
+  if (cached && Date.now() - cached.ts < CACHE_TTL) {
+    return cached.data;
+  }
+
   let appEmbedActive = false;
   let blocks = {};
   let debugInfo = {
@@ -177,12 +188,9 @@ export const loader = async ({ request }) => {
     }
   }
 
-  return {
-    shop: session.shop,
-    appEmbedActive,
-    blocks,
-    debugInfo
-  };
+  const result = { shop, appEmbedActive, blocks, debugInfo };
+  embedCache.set(shop, { data: result, ts: Date.now() });
+  return result;
 };
 
 export default function Index() {
@@ -191,21 +199,23 @@ export default function Index() {
 
   const [currentStep, setCurrentStep] = useState(1);
   const [dismissedBanner, setDismissedBanner] = useState(false);
-  const [isLoaded, setIsLoaded] = useState(false);
+  const lastRevalidatedAt = useRef(0);
 
+  // Read persisted step from localStorage after hydration
   useEffect(() => {
     const savedStep = localStorage.getItem("currentStep");
-    if (savedStep) {
-      setCurrentStep(parseInt(savedStep, 10));
-    }
-    setIsLoaded(true);
+    if (savedStep) setCurrentStep(parseInt(savedStep, 10));
   }, []);
 
+  // Revalidate on window focus at most once per 60 seconds to avoid
+  // hammering the Shopify Themes API every time the user switches tabs
   useEffect(() => {
     const handleFocus = () => {
-      revalidator.revalidate();
+      if (Date.now() - lastRevalidatedAt.current > 60_000) {
+        lastRevalidatedAt.current = Date.now();
+        revalidator.revalidate();
+      }
     };
-
     window.addEventListener("focus", handleFocus);
     return () => window.removeEventListener("focus", handleFocus);
   }, [revalidator]);
@@ -235,20 +245,6 @@ export default function Index() {
     localStorage.setItem("currentStep", "2");
   };
 
-
-  if (!isLoaded) {
-    return (
-      <Page title="Product Waivers">
-        <Layout>
-          <Layout.Section>
-            <Card>
-              <Text as="p">Loading setup...</Text>
-            </Card>
-          </Layout.Section>
-        </Layout>
-      </Page>
-    );
-  }
 
   const showBanner = appEmbedActive && !dismissedBanner;
 

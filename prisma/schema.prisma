@@ -31,6 +31,8 @@ model Session {
   emailVerified Boolean?  @default(false)
   refreshToken        String?
   refreshTokenExpires DateTime?
+
+  @@index([shop])
 }
 
 model WaiverSubmission {
@@ -49,6 +51,7 @@ model WaiverSubmission {
   state            String
   zip              String
   raceClub         String?
+  ipAddress        String?
 
   // Step 2 – Vehicle Information
   vehicleYear      String

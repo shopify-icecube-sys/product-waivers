@@ -43,6 +43,10 @@ export async function action({ request }) {
       }
     }
 
+    // Real customer IP — Shopify App Proxy forwards it in x-forwarded-for
+    const rawIp  = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "";
+    const ipAddress = rawIp.split(",")[0].trim() || null;
+
     const coreData = {
       shop:              String(data.shop),
       productHandle:     String(data.productHandle),
@@ -55,6 +59,7 @@ export async function action({ request }) {
       state:             String(data.state),
       zip:               String(data.zip),
       raceClub:          data.raceClub        ? String(data.raceClub)        : null,
+      ipAddress,
       vehicleYear:       String(data.vehicleYear),
       vehicleMake:       String(data.vehicleMake),
       vehicleModel:      String(data.vehicleModel),
@@ -93,8 +98,16 @@ export async function action({ request }) {
         data: { ...coreData, ...contentData },
       });
     } catch (e) {
-      console.warn("[Waiver] Saving without PDF content (run `npx prisma generate` to enable downloads):", e?.message);
-      submission = await db.waiverSubmission.create({ data: coreData });
+      // Fallback 1: binary may not know about new PDF url columns yet — strip them
+      try {
+        submission = await db.waiverSubmission.create({ data: coreData });
+        console.warn("[Waiver] Saved without PDF content (restart server + run `npx prisma generate`):", e?.message);
+      } catch (e2) {
+        // Fallback 2: binary may not know about ipAddress yet — strip it too
+        const { ipAddress: _ip, ...coreWithoutIp } = coreData;
+        submission = await db.waiverSubmission.create({ data: coreWithoutIp });
+        console.warn("[Waiver] Saved without ipAddress (restart server + run `npx prisma generate`):", e2?.message);
+      }
     }
 
     return jsonRes({ success: true, id: submission.id });
