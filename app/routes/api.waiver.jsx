@@ -43,7 +43,6 @@ export async function action({ request }) {
       }
     }
 
-    /* Core fields — always supported */
     const coreData = {
       shop:              String(data.shop),
       productHandle:     String(data.productHandle),
@@ -79,14 +78,13 @@ export async function action({ request }) {
       certPerjury:       String(data.certPerjury),
     };
 
-    /* PDF content fields — added in migration 2.
-       If the Prisma client hasn't been regenerated yet these will cause an
-       "Unknown field" error; in that case we fall back to saving without them. */
+    /* Store base64 PDF content. The admin submissions page will upload these
+       to Shopify Files and replace them with CDN URLs on first view. */
     const contentData = {
-      docTrailerContent: data.docTrailerContent || null,
-      docNonRoadContent: data.docNonRoadContent || null,
-      docEventContent:   data.docEventContent   || null,
-      docClubContent:    data.docClubContent     || null,
+      docTrailerUrl: data.docTrailerContent || null,
+      docNonRoadUrl: data.docNonRoadContent || null,
+      docEventUrl:   data.docEventContent   || null,
+      docClubUrl:    data.docClubContent     || null,
     };
 
     let submission;
@@ -95,7 +93,6 @@ export async function action({ request }) {
         data: { ...coreData, ...contentData },
       });
     } catch (e) {
-      /* Prisma client predates migration 2 — save without file content */
       console.warn("[Waiver] Saving without PDF content (run `npx prisma generate` to enable downloads):", e?.message);
       submission = await db.waiverSubmission.create({ data: coreData });
     }

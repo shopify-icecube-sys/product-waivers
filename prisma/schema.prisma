@@ -59,15 +59,15 @@ model WaiverSubmission {
   dmvRegistered    String?
   licensedForRoad  String?
 
-  // Step 3 – Document file names + base64 content for download
+  // Step 3 – Document file names + Shopify CDN URLs (or base64 for legacy entries)
   docTrailerName    String
   docNonRoadName    String
   docEventName      String
   docClubName       String?
-  docTrailerContent String?
-  docNonRoadContent String?
-  docEventContent   String?
-  docClubContent    String?
+  docTrailerUrl     String?  @map("docTrailerContent")
+  docNonRoadUrl     String?  @map("docNonRoadContent")
+  docEventUrl       String?  @map("docEventContent")
+  docClubUrl        String?  @map("docClubContent")
 
   // Step 4 – Compliance
   racingUseOnly     String
@@ -78,7 +78,7 @@ model WaiverSubmission {
   // Step 5 – Signature & Certification
   printedName       String
   signatureDate     String
-  digitalSignature  String  // base64 PNG data URL
+  digitalSignature  String  // base64 PNG/SVG data URL of the drawn signature
   certCarbApproved  String
   certEpaCertified  String
   certPerjury       String

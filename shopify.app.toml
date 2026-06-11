@@ -18,7 +18,7 @@ prefix = "apps"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "write_products,read_themes"
+scopes = "write_products,read_themes,write_files"
 
 [auth]
 redirect_urls = [ "https://example.com/api/auth" ]

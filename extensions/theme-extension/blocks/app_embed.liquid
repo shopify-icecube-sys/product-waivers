@@ -1055,20 +1055,39 @@
     if (pendingFetch) {
       var args = pendingFetch; pendingFetch = null;
       window.__pwWaiverDone = true;
-      origFetch.apply(window, args).finally(function () { window.__pwWaiverDone = false; });
+      origFetch.apply(window, args)
+        .then(function (res) {
+          if (res.ok) { window.location.href = '/cart'; }
+          else { window.__pwWaiverDone = false; }
+        })
+        .catch(function () { window.__pwWaiverDone = false; });
     } else if (pendingXhr) {
       var x = pendingXhr; pendingXhr = null;
       window.__pwWaiverDone = true;
       var xhr = new XMLHttpRequest();
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState === 4) {
+          if (xhr.status >= 200 && xhr.status < 300) { window.location.href = '/cart'; }
+          else { window.__pwWaiverDone = false; }
+        }
+      };
       origXhrOpen.call(xhr, x.method, x.url);
       Object.keys(x.headers || {}).forEach(function (h) { xhr.setRequestHeader(h, x.headers[h]); });
       origXhrSend.call(xhr, x.body);
-      window.__pwWaiverDone = false;
     } else if (pendingForm) {
+      /* Use fetch so the theme's own AJAX intercept cannot eat the redirect */
       var f = pendingForm; pendingForm = null;
       window.__pwWaiverDone = true;
-      f.submit();
-      window.__pwWaiverDone = false;
+      origFetch('/cart/add.js', {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        body: new FormData(f),
+      })
+      .then(function (res) {
+        if (res.ok) { window.location.href = '/cart'; }
+        else { f.submit(); window.__pwWaiverDone = false; }
+      })
+      .catch(function () { f.submit(); window.__pwWaiverDone = false; });
     }
   }
 
