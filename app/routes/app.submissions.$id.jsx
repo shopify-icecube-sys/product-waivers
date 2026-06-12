@@ -1,12 +1,13 @@
 /* eslint-disable react/prop-types */
-import { useLoaderData, useNavigate } from "react-router";
+import { useState } from "react";
+import { useLoaderData, useNavigate, useSubmit, useNavigation, useActionData } from "react-router";
 import { redirect } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import {
   Page, Card, Button, Text, BlockStack, InlineStack,
-  Box, InlineGrid, Spinner,
+  Box, InlineGrid, Spinner, TextField, Banner,
 } from "@shopify/polaris";
 
 export const loader = async ({ request, params }) => {
@@ -16,6 +17,42 @@ export const loader = async ({ request, params }) => {
   });
   if (!submission) throw redirect("/app/submissions");
   return { submission };
+};
+
+export const action = async ({ request, params }) => {
+  const { admin } = await authenticate.admin(request);
+  const formData   = await request.formData();
+  const orderNumber = String(formData.get("orderNumber") || "").trim();
+
+  if (!orderNumber) return { error: "Order number is required." };
+
+  const submission = await db.waiverSubmission.findUnique({ where: { id: params.id } });
+  if (!submission) return { error: "Submission not found." };
+
+  const { generateWaiverPdf } = await import("../utils/generateWaiverPdf.server.js");
+  const { uploadPdfBuffer }   = await import("../utils/uploadPdfBuffer.server.js");
+
+  try {
+    const submissionWithOrder = { ...submission, orderNumber };
+    const pdfBuffer = await generateWaiverPdf(submissionWithOrder);
+
+    const safeName = submission.fullName
+      .replace(/[^a-zA-Z0-9 ]/g, "")
+      .trim()
+      .replace(/\s+/g, "_");
+    const filename = `${orderNumber.replace("#", "")}_${safeName}.pdf`;
+
+    const pdfUrl = await uploadPdfBuffer(admin, pdfBuffer, filename);
+
+    await db.waiverSubmission.update({
+      where: { id: params.id },
+      data:  { orderNumber, orderPdfUrl: pdfUrl },
+    });
+
+    return { success: true, pdfUrl };
+  } catch (err) {
+    return { error: "PDF generation failed: " + (err?.message || "unknown error") };
+  }
 };
 
 /* ── helpers ── */
@@ -83,7 +120,19 @@ function DocLink({ content, filename }) {
 
 export default function SubmissionDetail() {
   const { submission: s } = useLoaderData();
-  const navigate = useNavigate();
+  const actionData  = useActionData();
+  const navigate    = useNavigate();
+  const submit      = useSubmit();
+  const navigation  = useNavigation();
+  const isGenerating = navigation.state === "submitting";
+
+  const [orderInput, setOrderInput] = useState("");
+
+  const handleGeneratePdf = () => {
+    const fd = new FormData();
+    fd.append("orderNumber", orderInput);
+    submit(fd, { method: "post" });
+  };
 
   return (
     <Page
@@ -91,6 +140,59 @@ export default function SubmissionDetail() {
       backAction={{ content: "Submissions", onAction: () => navigate("/app/submissions") }}
     >
       <BlockStack gap="500">
+
+        {/* ── Generate / View Order PDF ── */}
+        <Card>
+          <BlockStack gap="300">
+            <Text as="h3" variant="headingSm" tone="success">ORDER PDF</Text>
+
+            {s.orderPdfUrl ? (
+              /* PDF already generated — show download */
+              <InlineGrid columns={2} gap="400">
+                <Field label="Order Number" value={s.orderNumber || "—"} />
+                <BlockStack gap="100">
+                  <Text as="span" variant="bodySm" tone="subdued" fontWeight="bold" textTransform="uppercase">Waiver PDF</Text>
+                  <InlineStack gap="200">
+                    <Button size="micro" url={s.orderPdfUrl} external>Download PDF</Button>
+                  </InlineStack>
+                </BlockStack>
+              </InlineGrid>
+            ) : (
+              /* No PDF yet — show generation form */
+              <BlockStack gap="300">
+                {actionData?.error && (
+                  <Banner tone="critical">{actionData.error}</Banner>
+                )}
+                {actionData?.success && (
+                  <Banner tone="success">PDF generated and saved to Shopify Files successfully!</Banner>
+                )}
+                <InlineStack gap="300" blockAlign="end">
+                  <div style={{ flex: 1 }}>
+                    <TextField
+                      label="Order Number"
+                      placeholder="e.g. #1002"
+                      value={orderInput}
+                      onChange={setOrderInput}
+                      autoComplete="off"
+                    />
+                  </div>
+                  <Button
+                    variant="primary"
+                    onClick={handleGeneratePdf}
+                    loading={isGenerating}
+                    disabled={!orderInput.trim() || isGenerating}
+                  >
+                    Generate PDF
+                  </Button>
+                </InlineStack>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  Enter the Shopify order number, then click Generate PDF. The PDF will be saved to Content → Files.
+                </Text>
+              </BlockStack>
+            )}
+          </BlockStack>
+        </Card>
+
         <Card>
           <BlockStack gap="300">
             <Text as="h3" variant="headingSm" tone="info">CUSTOMER INFORMATION</Text>

@@ -86,6 +86,10 @@ model WaiverSubmission {
   certEpaCertified  String
   certPerjury       String
 
+  // Order-linked PDF
+  orderNumber       String?
+  orderPdfUrl       String?
+
   @@index([shop])
   @@index([email])
 }
