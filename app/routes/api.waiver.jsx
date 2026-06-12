@@ -44,8 +44,11 @@ export async function action({ request }) {
     }
 
     // Real customer IP — Shopify App Proxy forwards it in x-forwarded-for
-    const rawIp  = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "";
-    const ipAddress = rawIp.split(",")[0].trim() || null;
+    const rawIp = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "";
+    const ipList = rawIp.split(",").map(ip => ip.trim()).filter(Boolean);
+    const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
+    // Prefer IPv4; fall back to first available (IPv6) if no IPv4 in chain
+    const ipAddress = ipList.find(ip => ipv4Regex.test(ip)) || ipList[0] || null;
 
     const coreData = {
       shop:              String(data.shop),
