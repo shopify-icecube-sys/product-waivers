@@ -177,7 +177,10 @@ export default function SubmissionDetail() {
 
         <Box paddingBlock="200">
           <Text as="p" variant="bodySm" tone="subdued" alignment="center">
-            Shop: {s.shop} • Product: {s.productHandle} • ID: {s.id} • Submitted: {fmt(s.createdAt)}
+            Shop: {s.shop} • Product: {s.productHandle} • ID: {s.id}{s.ipAddress ? ` • IP: ${s.ipAddress}` : ""}
+          </Text>
+          <Text as="p" variant="bodySm" tone="subdued" alignment="center">
+            Submitted: {fmt(s.createdAt)}
           </Text>
         </Box>
       </BlockStack>
