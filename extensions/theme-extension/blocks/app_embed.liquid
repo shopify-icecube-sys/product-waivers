@@ -495,12 +495,12 @@
 
   /* Signature pad */
   .pw-sig-wrapper {
-    border: 1px solid #8c9196; border-radius: 4px;
+    border: 2px solid #8c9196; border-radius: 6px;
     overflow: hidden; background: #fff; position: relative;
   }
   .pw-sig-wrapper.pw-error { border-color: #d82c0d; box-shadow: inset 0 0 0 1px #d82c0d; }
   #pw-sig-canvas {
-    display: block; width: 100%; height: 130px;
+    display: block; width: 100%; height: 220px;
     cursor: crosshair; touch-action: none;
   }
   .pw-sig-hint {
@@ -985,10 +985,10 @@
     window.__pwSigEmpty = true;
 
     /* Fixed logical resolution — safe to set even while modal is hidden */
-    canvas.width  = 600;
-    canvas.height = 130;
+    canvas.width  = 900;
+    canvas.height = 330;
     ctx.strokeStyle = '#111';
-    ctx.lineWidth   = 2;
+    ctx.lineWidth   = 2.5;
     ctx.lineCap     = 'round';
     ctx.lineJoin    = 'round';
 
@@ -1003,14 +1003,24 @@
         y: (src.clientY - rect.top)  * scaleY,
       };
     }
+    var lastX = 0, lastY = 0;
     function onStart(e) {
       e.preventDefault(); drawing = true;
-      var p = getXY(e); ctx.beginPath(); ctx.moveTo(p.x, p.y);
+      var p = getXY(e);
+      lastX = p.x; lastY = p.y;
+      ctx.beginPath(); ctx.moveTo(p.x, p.y);
     }
     function onMove(e) {
       if (!drawing) return;
       e.preventDefault();
-      var p = getXY(e); ctx.lineTo(p.x, p.y); ctx.stroke();
+      var p = getXY(e);
+      // Smooth bezier curve between last and current point
+      var midX = (lastX + p.x) / 2;
+      var midY = (lastY + p.y) / 2;
+      ctx.quadraticCurveTo(lastX, lastY, midX, midY);
+      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(midX, midY);
+      lastX = p.x; lastY = p.y;
       if (window.__pwSigEmpty) {
         window.__pwSigEmpty = false;
         if (hint)    hint.style.display = 'none';
@@ -1018,7 +1028,7 @@
         clearSpanErr('pw-err-signature');
       }
     }
-    function onEnd() { drawing = false; }
+    function onEnd() { drawing = false; ctx.beginPath(); }
 
     canvas.addEventListener('mousedown',  onStart);
     canvas.addEventListener('mousemove',  onMove);
