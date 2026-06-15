@@ -49,6 +49,46 @@ export const action = async ({ request, params }) => {
       data:  { orderNumber, orderPdfUrl: pdfUrl },
     });
 
+    // Save PDF URL to order metafield custom.waiver_form
+    try {
+      const orderRes  = await admin.graphql(
+        `#graphql
+        query GetOrderId($query: String!) {
+          orders(first: 1, query: $query) {
+            edges { node { id } }
+          }
+        }`,
+        { variables: { query: `name:${orderNumber}` } }
+      );
+      const orderJson = await orderRes.json();
+      const orderId   = orderJson.data?.orders?.edges?.[0]?.node?.id;
+      if (orderId) {
+        const metaMutation = `#graphql
+          mutation SetWaiverMetafield($metafields: [MetafieldsSetInput!]!) {
+            metafieldsSet(metafields: $metafields) {
+              metafields { id key namespace value }
+              userErrors { field message }
+            }
+          }`;
+        for (const type of ["url", "single_line_text_field"]) {
+          const metaRes  = await admin.graphql(metaMutation, {
+            variables: {
+              metafields: [{ ownerId: orderId, namespace: "custom", key: "waiver_form", value: pdfUrl, type }],
+            },
+          });
+          const metaJson = await metaRes.json();
+          const errs     = metaJson.data?.metafieldsSet?.userErrors;
+          if (!errs?.length) {
+            console.log(`[PDF] Metafield saved (type=${type}) for order ${orderId}`);
+            break;
+          }
+          console.warn(`[PDF] Metafield type=${type} failed:`, errs.map(e => e.message).join(", "));
+        }
+      }
+    } catch (metaErr) {
+      console.error("[PDF] Metafield save failed:", metaErr?.message);
+    }
+
     return { success: true, pdfUrl };
   } catch (err) {
     return { error: "PDF generation failed: " + (err?.message || "unknown error") };

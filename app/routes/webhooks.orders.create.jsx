@@ -129,6 +129,33 @@ export const action = async ({ request }) => {
           data:  { orderNumber: orderName, orderPdfUrl: pdfUrl },
         });
 
+        // Save PDF URL to order metafield custom.waiver_form
+        const orderId = order.admin_graphql_api_id;
+        if (orderId && pdfUrl) {
+          const metaMutation = `#graphql
+            mutation SetWaiverMetafield($metafields: [MetafieldsSetInput!]!) {
+              metafieldsSet(metafields: $metafields) {
+                metafields { id key namespace value }
+                userErrors { field message }
+              }
+            }`;
+          // Try url type first, fall back to single_line_text_field
+          for (const type of ["url", "single_line_text_field"]) {
+            const metaRes  = await admin.graphql(metaMutation, {
+              variables: {
+                metafields: [{ ownerId: orderId, namespace: "custom", key: "waiver_form", value: pdfUrl, type }],
+              },
+            });
+            const metaJson = await metaRes.json();
+            const errs     = metaJson.data?.metafieldsSet?.userErrors;
+            if (!errs?.length) {
+              console.log(`[Webhook] Metafield saved (type=${type}) for order ${orderId}`);
+              break;
+            }
+            console.warn(`[Webhook] Metafield type=${type} failed:`, errs.map(e => e.message).join(", "));
+          }
+        }
+
         console.log(`[Webhook] PDF uploaded → ${filename} | URL: ${pdfUrl}`);
       } catch (err) {
         console.error(`[Webhook] Failed for submission ${submission.id}:`, err?.message);
