@@ -1,4 +1,5 @@
 import db from "../db.server";
+import { unauthenticated } from "../shopify.server";
 
 function jsonRes(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -10,6 +11,50 @@ function jsonRes(body, status = 200) {
 /* GET — App Proxy health check */
 export async function loader() {
   return jsonRes({ ok: true });
+}
+
+/* Upload one document buffer to Shopify Files; returns CDN URL or null */
+async function uploadDoc(admin, content, filename) {
+  if (!content || !content.startsWith("data:")) return null;
+  const base64 = content.split(",")[1];
+  if (!base64) return null;
+  try {
+    const buffer = Buffer.from(base64, "base64");
+    const { uploadPdfBuffer } = await import("../utils/uploadPdfBuffer.server.js");
+    return await uploadPdfBuffer(admin, buffer, filename);
+  } catch (err) {
+    console.error(`[Waiver] Doc upload failed (${filename}):`, err?.message);
+    return null;
+  }
+}
+
+/* Background: upload the 4 user documents to Shopify Files, then update DB */
+async function uploadDocsBackground(submissionId, data, shop) {
+  try {
+    const { admin } = await unauthenticated.admin(shop);
+
+    const [trailerUrl, nonRoadUrl, eventUrl, clubUrl] = await Promise.all([
+      uploadDoc(admin, data.docTrailerContent, data.docTrailerName),
+      uploadDoc(admin, data.docNonRoadContent, data.docNonRoadName),
+      uploadDoc(admin, data.docEventContent,   data.docEventName),
+      data.docClubContent && data.docClubName
+        ? uploadDoc(admin, data.docClubContent, data.docClubName)
+        : Promise.resolve(null),
+    ]);
+
+    const updates = {};
+    if (trailerUrl) updates.docTrailerUrl = trailerUrl;
+    if (nonRoadUrl) updates.docNonRoadUrl = nonRoadUrl;
+    if (eventUrl)   updates.docEventUrl   = eventUrl;
+    if (clubUrl)    updates.docClubUrl    = clubUrl;
+
+    if (Object.keys(updates).length > 0) {
+      await db.waiverSubmission.update({ where: { id: submissionId }, data: updates });
+      console.log(`[Waiver] Docs uploaded for submission ${submissionId}`);
+    }
+  } catch (err) {
+    console.error(`[Waiver] Background doc upload error (${submissionId}):`, err?.message);
+  }
 }
 
 /* POST — Save waiver submission (called via Shopify App Proxy) */
@@ -44,14 +89,15 @@ export async function action({ request }) {
     }
 
     // Real customer IP — Shopify App Proxy forwards it in x-forwarded-for
-    const rawIp = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "";
+    const rawIp  = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "";
     const ipList = rawIp.split(",").map(ip => ip.trim()).filter(Boolean);
-    const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
-    // Prefer IPv4; fall back to first available (IPv6) if no IPv4 in chain
-    const ipAddress = ipList.find(ip => ipv4Regex.test(ip)) || ipList[0] || null;
+    const ipv4Re = /^(\d{1,3}\.){3}\d{1,3}$/;
+    const ipAddress = ipList.find(ip => ipv4Re.test(ip)) || ipList[0] || null;
+
+    const shop = String(data.shop);
 
     const coreData = {
-      shop:              String(data.shop),
+      shop,
       productHandle:     String(data.productHandle),
       fullName:          String(data.fullName),
       email:             String(data.email),
@@ -86,8 +132,7 @@ export async function action({ request }) {
       certPerjury:       String(data.certPerjury),
     };
 
-    /* Store base64 PDF content. The admin submissions page will upload these
-       to Shopify Files and replace them with CDN URLs on first view. */
+    // Save base64 content as placeholder until background upload completes
     const contentData = {
       docTrailerUrl: data.docTrailerContent || null,
       docNonRoadUrl: data.docNonRoadContent || null,
@@ -101,17 +146,18 @@ export async function action({ request }) {
         data: { ...coreData, ...contentData },
       });
     } catch (e) {
-      // Fallback 1: binary may not know about new PDF url columns yet — strip them
       try {
         submission = await db.waiverSubmission.create({ data: coreData });
-        console.warn("[Waiver] Saved without PDF content (restart server + run `npx prisma generate`):", e?.message);
+        console.warn("[Waiver] Saved without PDF content:", e?.message);
       } catch (e2) {
-        // Fallback 2: binary may not know about ipAddress yet — strip it too
         const { ipAddress: _ip, ...coreWithoutIp } = coreData;
         submission = await db.waiverSubmission.create({ data: coreWithoutIp });
-        console.warn("[Waiver] Saved without ipAddress (restart server + run `npx prisma generate`):", e2?.message);
+        console.warn("[Waiver] Saved without ipAddress:", e2?.message);
       }
     }
+
+    // Upload 4 documents to Shopify Files in background — does not delay response
+    uploadDocsBackground(submission.id, data, shop).catch(() => {});
 
     return jsonRes({ success: true, id: submission.id });
 

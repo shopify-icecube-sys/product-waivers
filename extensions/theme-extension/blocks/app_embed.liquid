@@ -871,8 +871,19 @@
     })
     .then(function (result) {
       if (result.success) {
-        hideModal();
-        replayCartAdd();
+        var submissionId = result.id;
+        // Set cart attribute first, then replay cart-add (guarantees attribute is present on order)
+        var attrDone = submissionId
+          ? origFetch('/cart/update.js', {
+              method:  'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body:    JSON.stringify({ attributes: { waiver_submission_id: submissionId } }),
+            }).catch(function () {})
+          : Promise.resolve();
+        attrDone.then(function () {
+          hideModal();
+          replayCartAdd();
+        });
       } else {
         console.error('[Product Waivers] Submission failed:', result.error);
         if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit'; }

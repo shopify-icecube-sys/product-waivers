@@ -1,13 +1,12 @@
 /* eslint-disable react/prop-types */
-import { useState } from "react";
-import { useLoaderData, useNavigate, useSubmit, useNavigation, useActionData } from "react-router";
+import { useLoaderData, useNavigate } from "react-router";
 import { redirect } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import {
   Page, Card, Button, Text, BlockStack, InlineStack,
-  Box, InlineGrid, Spinner, TextField, Banner,
+  Box, InlineGrid, Spinner, Banner,
 } from "@shopify/polaris";
 
 export const loader = async ({ request, params }) => {
@@ -160,19 +159,7 @@ function DocLink({ content, filename }) {
 
 export default function SubmissionDetail() {
   const { submission: s } = useLoaderData();
-  const actionData  = useActionData();
-  const navigate    = useNavigate();
-  const submit      = useSubmit();
-  const navigation  = useNavigation();
-  const isGenerating = navigation.state === "submitting";
-
-  const [orderInput, setOrderInput] = useState("");
-
-  const handleGeneratePdf = () => {
-    const fd = new FormData();
-    fd.append("orderNumber", orderInput);
-    submit(fd, { method: "post" });
-  };
+  const navigate = useNavigate();
 
   return (
     <Page
@@ -181,13 +168,13 @@ export default function SubmissionDetail() {
     >
       <BlockStack gap="500">
 
-        {/* ── Generate / View Order PDF ── */}
+        {/* ── Order PDF Status ── */}
         <Card>
           <BlockStack gap="300">
             <Text as="h3" variant="headingSm" tone="success">ORDER PDF</Text>
 
             {s.orderPdfUrl ? (
-              /* PDF already generated — show download */
+              /* PDF ready */
               <InlineGrid columns={2} gap="400">
                 <Field label="Order Number" value={s.orderNumber || "—"} />
                 <BlockStack gap="100">
@@ -197,38 +184,16 @@ export default function SubmissionDetail() {
                   </InlineStack>
                 </BlockStack>
               </InlineGrid>
+            ) : s.orderNumber ? (
+              /* Order received, PDF still processing */
+              <Banner tone="warning">
+                Order {s.orderNumber} received — PDF is being generated, please refresh in a moment.
+              </Banner>
             ) : (
-              /* No PDF yet — show generation form */
-              <BlockStack gap="300">
-                {actionData?.error && (
-                  <Banner tone="critical">{actionData.error}</Banner>
-                )}
-                {actionData?.success && (
-                  <Banner tone="success">PDF generated and saved to Shopify Files successfully!</Banner>
-                )}
-                <InlineStack gap="300" blockAlign="end">
-                  <div style={{ flex: 1 }}>
-                    <TextField
-                      label="Order Number"
-                      placeholder="e.g. #1002"
-                      value={orderInput}
-                      onChange={setOrderInput}
-                      autoComplete="off"
-                    />
-                  </div>
-                  <Button
-                    variant="primary"
-                    onClick={handleGeneratePdf}
-                    loading={isGenerating}
-                    disabled={!orderInput.trim() || isGenerating}
-                  >
-                    Generate PDF
-                  </Button>
-                </InlineStack>
-                <Text as="p" variant="bodySm" tone="subdued">
-                  Enter the Shopify order number, then click Generate PDF. The PDF will be saved to Content → Files.
-                </Text>
-              </BlockStack>
+              /* No order placed yet */
+              <Banner tone="info">
+                Customer has not placed any order yet.
+              </Banner>
             )}
           </BlockStack>
         </Card>
@@ -241,12 +206,12 @@ export default function SubmissionDetail() {
               <Field label="Email"            value={s.email} />
               <Field label="Phone"            value={s.phone} />
               <Field label="Driver's License" value={s.driversLicense} />
-              <Box gridColumn="span 2"><Field label="Street Address" value={s.streetAddress} /></Box>
+              <Box><Field label="Street Address" value={s.streetAddress} /></Box>
               <Field label="City"  value={s.city} />
               <Field label="State" value={s.state} />
               <Field label="ZIP"   value={s.zip} />
-              {s.raceClub && <Box gridColumn="span 2"><Field label="Race Club / League" value={s.raceClub} /></Box>}
-              {s.ipAddress && <Box gridColumn="span 2"><Field label="IP Address" value={s.ipAddress} /></Box>}
+              {s.raceClub && <Box><Field label="Race Club / League" value={s.raceClub} /></Box>}
+              {s.ipAddress && <Box><Field label="IP Address" value={s.ipAddress} /></Box>}
             </InlineGrid>
           </BlockStack>
         </Card>
@@ -259,7 +224,7 @@ export default function SubmissionDetail() {
               <Field label="Make"  value={s.vehicleMake} />
               <Field label="Model" value={s.vehicleModel} />
               <Field label="Color" value={s.vehicleColor} />
-              <Box gridColumn="span 2"><Field label="VIN" value={s.vin} /></Box>
+              <Box><Field label="VIN" value={s.vin} /></Box>
               <Field label="DMV Registered"        value={dash(s.dmvRegistered)} />
               <Field label="Licensed for Road Use"  value={dash(s.licensedForRoad)} />
             </InlineGrid>
