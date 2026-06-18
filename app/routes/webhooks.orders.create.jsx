@@ -26,9 +26,6 @@ export const action = async ({ request }) => {
 };
 
 async function processOrder(admin, order, shop) {
-  const { generateWaiverPdf } = await import("../utils/generateWaiverPdf.server.js");
-  const { uploadPdfBuffer }   = await import("../utils/uploadPdfBuffer.server.js");
-
   const orderName = order.name || `#${order.order_number}`;
   const orderId   = order.admin_graphql_api_id;
 
@@ -117,24 +114,11 @@ async function processOrder(admin, order, shop) {
 
   console.log(`[Webhook] Locked submission ${submission.id} for ${orderName}`);
 
-  try {
-    const pdfBuffer = await generateWaiverPdf({ ...submission, orderNumber: orderName });
+  // PDF already generated on form submit — just save existing URL to order metafield
+  const pdfUrl = submission.orderPdfUrl?.startsWith("http") ? submission.orderPdfUrl : null;
 
-    const safeName = (submission.fullName || "Customer")
-      .replace(/[^a-zA-Z0-9 ]/g, "")
-      .trim()
-      .replace(/\s+/g, "_") || "Customer";
-    const filename = `${orderName.replace("#", "")}_${safeName}.pdf`;
-
-    const pdfUrl = await uploadPdfBuffer(admin, pdfBuffer, filename);
-
-    await db.waiverSubmission.update({
-      where: { id: submission.id },
-      data:  { orderPdfUrl: pdfUrl },
-    });
-
-    // Save PDF URL to order metafield custom.waiver_form
-    if (orderId && pdfUrl) {
+  if (orderId && pdfUrl) {
+    try {
       const metaMutation = `#graphql
         mutation SetWaiverMetafield($metafields: [MetafieldsSetInput!]!) {
           metafieldsSet(metafields: $metafields) {
@@ -156,10 +140,10 @@ async function processOrder(admin, order, shop) {
         }
         console.warn(`[Webhook] Metafield type=${type} failed:`, errs.map((e) => e.message).join(", "));
       }
+    } catch (err) {
+      console.error(`[Webhook] Metafield save failed:`, err?.message);
     }
-
-    console.log(`[Webhook] PDF done → ${filename} | ${pdfUrl}`);
-  } catch (err) {
-    console.error(`[Webhook] PDF generation failed for ${submission.id}:`, err?.message);
   }
+
+  console.log(`[Webhook] Order ${orderName} linked to submission ${submission.id}`);
 }

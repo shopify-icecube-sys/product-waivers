@@ -583,6 +583,7 @@
   var pendingForm  = null;
   var pendingFetch = null;
   var pendingXhr   = null;
+  var lastWaiverSubmissionId = null;
 
   /* ── show / hide ── */
   function showModal() {
@@ -872,6 +873,7 @@
     .then(function (result) {
       if (result.success) {
         var submissionId = result.id;
+        lastWaiverSubmissionId = submissionId || null;
         // Set cart attribute first, then replay cart-add (guarantees attribute is present on order)
         var attrDone = submissionId
           ? origFetch('/cart/update.js', {
@@ -1076,6 +1078,16 @@
     if (pendingFetch) {
       var args = pendingFetch; pendingFetch = null;
       window.__pwWaiverDone = true;
+      if (lastWaiverSubmissionId && args[1] && args[1].body) {
+        try {
+          var reqInit = Object.assign({}, args[1]);
+          var bodyObj = JSON.parse(reqInit.body);
+          if (!bodyObj.properties) bodyObj.properties = {};
+          bodyObj.properties['waiver_submission_id'] = lastWaiverSubmissionId;
+          reqInit.body = JSON.stringify(bodyObj);
+          args = [args[0], reqInit];
+        } catch (e) {}
+      }
       origFetch.apply(window, args)
         .then(function (res) {
           if (res.ok) { window.location.href = '/cart'; }
@@ -1099,6 +1111,13 @@
       /* Use fetch so the theme's own AJAX intercept cannot eat the redirect */
       var f = pendingForm; pendingForm = null;
       window.__pwWaiverDone = true;
+      if (lastWaiverSubmissionId) {
+        var inp = document.createElement('input');
+        inp.type = 'hidden';
+        inp.name = 'properties[waiver_submission_id]';
+        inp.value = lastWaiverSubmissionId;
+        f.appendChild(inp);
+      }
       origFetch('/cart/add.js', {
         method: 'POST',
         headers: { 'X-Requested-With': 'XMLHttpRequest' },

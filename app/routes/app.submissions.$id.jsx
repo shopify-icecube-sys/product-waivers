@@ -176,7 +176,7 @@ export default function SubmissionDetail() {
             {s.orderPdfUrl ? (
               /* PDF ready */
               <InlineGrid columns={2} gap="400">
-                <Field label="Order Number" value={s.orderNumber || "—"} />
+                <Field label="Order Number" value={s.orderNumber || "Order not placed yet"} />
                 <BlockStack gap="100">
                   <Text as="span" variant="bodySm" tone="subdued" fontWeight="bold" textTransform="uppercase">Waiver PDF</Text>
                   <InlineStack gap="200">

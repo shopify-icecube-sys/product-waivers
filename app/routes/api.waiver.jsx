@@ -8,6 +8,16 @@ function jsonRes(body, status = 200) {
   });
 }
 
+/* CustomerName_gJhWeR.pdf — unique suffix per call */
+function makeFilename(fullName) {
+  const safe = (fullName || "Customer")
+    .replace(/[^a-zA-Z0-9 ]/g, "")
+    .trim()
+    .replace(/\s+/g, "_") || "Customer";
+  const uid = Math.random().toString(36).slice(2, 8);
+  return `${safe}_${uid}.pdf`;
+}
+
 /* GET — App Proxy health check */
 export async function loader() {
   return jsonRes({ ok: true });
@@ -54,6 +64,31 @@ async function uploadDocsBackground(submissionId, data, shop) {
     }
   } catch (err) {
     console.error(`[Waiver] Background doc upload error (${submissionId}):`, err?.message);
+  }
+}
+
+/* Generate waiver PDF on form submit and save URL to orderPdfUrl */
+async function generatePdfBackground(submissionId, submission, shop) {
+  try {
+    const { admin } = await unauthenticated.admin(shop);
+    const { generateWaiverPdf } = await import("../utils/generateWaiverPdf.server.js");
+    const { uploadPdfBuffer }   = await import("../utils/uploadPdfBuffer.server.js");
+
+    const pdfBuffer = await generateWaiverPdf(submission);
+
+    const filename = makeFilename(submission.fullName);
+
+    const pdfUrl = await uploadPdfBuffer(admin, pdfBuffer, filename);
+
+    if (pdfUrl) {
+      await db.waiverSubmission.update({
+        where: { id: submissionId },
+        data:  { orderPdfUrl: pdfUrl },
+      });
+      console.log(`[Waiver] Submission PDF generated for ${submissionId}`);
+    }
+  } catch (err) {
+    console.error(`[Waiver] PDF generation failed for ${submissionId}:`, err?.message);
   }
 }
 
@@ -158,6 +193,9 @@ export async function action({ request }) {
 
     // Upload 4 documents to Shopify Files in background — does not delay response
     uploadDocsBackground(submission.id, data, shop).catch(() => {});
+
+    // Generate waiver PDF immediately in background — does not delay response
+    generatePdfBackground(submission.id, submission, shop).catch(() => {});
 
     return jsonRes({ success: true, id: submission.id });
 
