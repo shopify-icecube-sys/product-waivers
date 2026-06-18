@@ -1,4 +1,3 @@
-/* eslint-disable react/prop-types */
 import { useState, useCallback } from "react";
 import { useLoaderData, useSubmit, useNavigate } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
