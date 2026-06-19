@@ -23,7 +23,7 @@ export async function loader() {
   return jsonRes({ ok: true });
 }
 
-/* Upload one document buffer to Shopify Files; returns CDN URL or null */
+/* Upload a single PDF/document buffer to Shopify Files; returns CDN URL or null */
 async function uploadDoc(admin, content, filename) {
   if (!content || !content.startsWith("data:")) return null;
   const base64 = content.split(",")[1];
@@ -31,64 +31,135 @@ async function uploadDoc(admin, content, filename) {
   try {
     const buffer = Buffer.from(base64, "base64");
     const { uploadPdfBuffer } = await import("../utils/uploadPdfBuffer.server.js");
-    return await uploadPdfBuffer(admin, buffer, filename);
+    return await uploadPdfBuffer(admin, buffer, filename, "application/pdf");
   } catch (err) {
     console.error(`[Waiver] Doc upload failed (${filename}):`, err?.message);
     return null;
   }
 }
 
-/* Background: upload the 4 user documents to Shopify Files, then update DB */
-async function uploadDocsBackground(submissionId, data, shop) {
+/* Upload multiple images to Shopify Files; returns array of CDN URLs */
+async function uploadImages(admin, contents, filenameBase) {
+  if (!Array.isArray(contents) || !contents.length) return [];
+  const { uploadPdfBuffer } = await import("../utils/uploadPdfBuffer.server.js");
+  const results = await Promise.all(
+    contents.map(async (content, i) => {
+      if (!content || !content.startsWith("data:")) return null;
+      try {
+        const mimeType = content.split(";")[0].split(":")[1] || "image/jpeg";
+        const ext      = mimeType.split("/")[1]?.replace("jpeg", "jpg") || "jpg";
+        const base64   = content.split(",")[1];
+        if (!base64) return null;
+        const buffer   = Buffer.from(base64, "base64");
+        const uid      = Math.random().toString(36).slice(2, 6);
+        const filename = `${filenameBase}_${i + 1}_${uid}.${ext}`;
+        return await uploadPdfBuffer(admin, buffer, filename, mimeType);
+      } catch (err) {
+        console.error(`[Waiver] Image upload failed (${filenameBase}_${i + 1}):`, err?.message);
+        return null;
+      }
+    })
+  );
+  return results.filter(Boolean);
+}
+
+/* Set order metafield custom.waiver_form using the Shopify order GID stored by webhook.
+   Uses orderId directly — no orders query needed, avoids any read_orders permission issues. */
+async function setOrderMetafield(admin, orderGid, pdfUrl) {
+  if (!orderGid || !pdfUrl) return;
+  const metaMutation = `#graphql
+    mutation SetWaiverMetafield($metafields: [MetafieldsSetInput!]!) {
+      metafieldsSet(metafields: $metafields) {
+        metafields { id key namespace value }
+        userErrors { field message }
+      }
+    }`;
+  try {
+    for (const type of ["single_line_text_field", "url"]) {
+      const metaRes  = await admin.graphql(metaMutation, {
+        variables: {
+          metafields: [{ ownerId: orderGid, namespace: "custom", key: "waiver_form", value: pdfUrl, type }],
+        },
+      });
+      const metaJson = await metaRes.json();
+      const errs     = metaJson.data?.metafieldsSet?.userErrors;
+      if (!errs?.length) {
+        console.log(`[Waiver] Metafield saved (type=${type}) for order ${orderGid}`);
+        return;
+      }
+      console.warn(`[Waiver] Metafield type=${type} failed:`, errs.map((e) => e.message).join(", "));
+    }
+  } catch (err) {
+    console.error(`[Waiver] setOrderMetafield error for ${orderGid}:`, err?.message);
+  }
+}
+
+/* Upload images first, then PDFs, then generate final PDF with embedded images + CDN links */
+async function uploadDocsAndGeneratePdf(submissionId, data, shop) {
   try {
     const { admin } = await unauthenticated.admin(shop);
 
-    const [trailerUrl, nonRoadUrl, eventUrl, clubUrl] = await Promise.all([
-      uploadDoc(admin, data.docTrailerContent, data.docTrailerName),
-      uploadDoc(admin, data.docNonRoadContent, data.docNonRoadName),
-      uploadDoc(admin, data.docEventContent,   data.docEventName),
+    const safeName = (data.fullName || "waiver")
+      .replace(/[^a-zA-Z0-9 ]/g, "").trim().replace(/\s+/g, "_") || "waiver";
+
+    // Step 1: Upload all docs to Shopify Files (images + PDFs in parallel)
+    const [trailerUrls, nonRoadUrls, eventUrl, clubUrl] = await Promise.all([
+      uploadImages(admin, data.docTrailerContent, `${safeName}_trailer`),
+      uploadImages(admin, data.docNonRoadContent, `${safeName}_nonroad`),
+      uploadDoc(admin, data.docEventContent, data.docEventName),
       data.docClubContent && data.docClubName
         ? uploadDoc(admin, data.docClubContent, data.docClubName)
         : Promise.resolve(null),
     ]);
 
-    const updates = {};
-    if (trailerUrl) updates.docTrailerUrl = trailerUrl;
-    if (nonRoadUrl) updates.docNonRoadUrl = nonRoadUrl;
-    if (eventUrl)   updates.docEventUrl   = eventUrl;
-    if (clubUrl)    updates.docClubUrl    = clubUrl;
+    // Step 2: Persist CDN URLs to DB
+    const docUpdates = {};
+    if (trailerUrls.length) docUpdates.docTrailerUrl = JSON.stringify(trailerUrls);
+    if (nonRoadUrls.length) docUpdates.docNonRoadUrl = JSON.stringify(nonRoadUrls);
+    if (eventUrl)           docUpdates.docEventUrl   = eventUrl;
+    if (clubUrl)            docUpdates.docClubUrl    = clubUrl;
 
-    if (Object.keys(updates).length > 0) {
-      await db.waiverSubmission.update({ where: { id: submissionId }, data: updates });
+    let updatedSubmission;
+    if (Object.keys(docUpdates).length > 0) {
+      updatedSubmission = await db.waiverSubmission.update({
+        where: { id: submissionId },
+        data:  docUpdates,
+      });
       console.log(`[Waiver] Docs uploaded for submission ${submissionId}`);
+    } else {
+      updatedSubmission = await db.waiverSubmission.findUnique({ where: { id: submissionId } });
     }
-  } catch (err) {
-    console.error(`[Waiver] Background doc upload error (${submissionId}):`, err?.message);
-  }
-}
 
-/* Generate waiver PDF on form submit and save URL to orderPdfUrl */
-async function generatePdfBackground(submissionId, submission, shop) {
-  try {
-    const { admin } = await unauthenticated.admin(shop);
+    // Step 3: Generate PDF — embed images directly from memory, use CDN links for PDFs
     const { generateWaiverPdf } = await import("../utils/generateWaiverPdf.server.js");
     const { uploadPdfBuffer }   = await import("../utils/uploadPdfBuffer.server.js");
 
-    const pdfBuffer = await generateWaiverPdf(submission);
-
-    const filename = makeFilename(submission.fullName);
-
-    const pdfUrl = await uploadPdfBuffer(admin, pdfBuffer, filename);
+    const pdfBuffer = await generateWaiverPdf(updatedSubmission, {
+      trailerImages: Array.isArray(data.docTrailerContent) ? data.docTrailerContent : [],
+      nonRoadImages: Array.isArray(data.docNonRoadContent) ? data.docNonRoadContent : [],
+    });
+    const filename  = makeFilename(updatedSubmission.fullName);
+    const pdfUrl    = await uploadPdfBuffer(admin, pdfBuffer, filename);
 
     if (pdfUrl) {
+      // Update DB with PDF URL
       await db.waiverSubmission.update({
         where: { id: submissionId },
         data:  { orderPdfUrl: pdfUrl },
       });
       console.log(`[Waiver] Submission PDF generated for ${submissionId}`);
+
+      // Read orderGid via raw SQL — set by webhook when it locked the submission
+      const rows = await db.$queryRaw`SELECT "orderGid" FROM "WaiverSubmission" WHERE "id" = ${submissionId} LIMIT 1`;
+      const orderGid = rows[0]?.orderGid ?? null;
+      if (orderGid) {
+        await setOrderMetafield(admin, orderGid, pdfUrl);
+      } else {
+        console.log(`[Waiver] orderGid not yet set for ${submissionId} — webhook may not have run yet`);
+      }
     }
   } catch (err) {
-    console.error(`[Waiver] PDF generation failed for ${submissionId}:`, err?.message);
+    console.error(`[Waiver] Background processing error (${submissionId}):`, err?.message);
   }
 }
 
@@ -151,8 +222,12 @@ export async function action({ request }) {
       vin:               String(data.vin),
       dmvRegistered:     data.dmvRegistered   ? String(data.dmvRegistered)   : null,
       licensedForRoad:   data.licensedForRoad ? String(data.licensedForRoad) : null,
-      docTrailerName:    String(data.docTrailerName),
-      docNonRoadName:    String(data.docNonRoadName),
+      docTrailerName:    Array.isArray(data.docTrailerName)
+                           ? data.docTrailerName.filter(Boolean).join(", ")
+                           : String(data.docTrailerName),
+      docNonRoadName:    Array.isArray(data.docNonRoadName)
+                           ? data.docNonRoadName.filter(Boolean).join(", ")
+                           : String(data.docNonRoadName),
       docEventName:      String(data.docEventName),
       docClubName:       data.docClubName     ? String(data.docClubName)     : null,
       racingUseOnly:     String(data.racingUseOnly),
@@ -167,12 +242,13 @@ export async function action({ request }) {
       certPerjury:       String(data.certPerjury),
     };
 
-    // Save base64 content as placeholder until background upload completes
+    // Images (trailer/nonroad) are uploaded async — no base64 placeholder needed
+    // PDFs (event/club) keep base64 placeholder so PDF can fall back if CDN upload fails
     const contentData = {
-      docTrailerUrl: data.docTrailerContent || null,
-      docNonRoadUrl: data.docNonRoadContent || null,
-      docEventUrl:   data.docEventContent   || null,
-      docClubUrl:    data.docClubContent     || null,
+      docTrailerUrl: null,
+      docNonRoadUrl: null,
+      docEventUrl:   data.docEventContent || null,
+      docClubUrl:    data.docClubContent  || null,
     };
 
     let submission;
@@ -191,11 +267,8 @@ export async function action({ request }) {
       }
     }
 
-    // Upload 4 documents to Shopify Files in background — does not delay response
-    uploadDocsBackground(submission.id, data, shop).catch(() => {});
-
-    // Generate waiver PDF immediately in background — does not delay response
-    generatePdfBackground(submission.id, submission, shop).catch(() => {});
+    // Upload docs then generate PDF (sequential) in background — does not delay response
+    uploadDocsAndGeneratePdf(submission.id, data, shop).catch(() => {});
 
     return jsonRes({ success: true, id: submission.id });
 

@@ -240,18 +240,18 @@
       <!-- Step 3: Documents (PDF only, max 10 MB) -->
       <div class="pw-panel pw-hidden" id="pw-panel-3">
         <h3 class="pw-step-title">Step 3 - Documents</h3>
-        <p class="pw-doc-hint">PDF files only &bull; Max 10 MB per file</p>
+        <p class="pw-doc-hint">Vehicle &amp; Non-Road Use: images only (JPG/PNG) &bull; Max 200 KB each &bull; Multiple allowed &nbsp;|&nbsp; Event &amp; Club: PDF only &bull; Max 10 MB</p>
         <div class="pw-doc-row">
-          <label class="pw-doc-label">Vehicle on Trailer <span class="pw-req">*</span></label>
+          <label class="pw-doc-label">Vehicle on Trailer <span class="pw-req">*</span><br><span style="font-size:11px;color:#6d7175;font-weight:400">Images &bull; Max 200 KB each</span></label>
           <div class="pw-doc-wrap">
-            <input type="file" id="pw-doc-trailer" class="pw-file-input" accept=".pdf,application/pdf">
+            <input type="file" id="pw-doc-trailer" class="pw-file-input" accept=".jpg,.jpeg,.png,.webp,.gif,image/*" multiple>
             <span class="pw-err-msg" id="pw-err-doc-trailer">Please upload this document.</span>
           </div>
         </div>
         <div class="pw-doc-row">
-          <label class="pw-doc-label">Proof of Non-Road Use <span class="pw-req">*</span></label>
+          <label class="pw-doc-label">Proof of Non-Road Use <span class="pw-req">*</span><br><span style="font-size:11px;color:#6d7175;font-weight:400">Images &bull; Max 200 KB each</span></label>
           <div class="pw-doc-wrap">
-            <input type="file" id="pw-doc-nonroad" class="pw-file-input" accept=".pdf,application/pdf">
+            <input type="file" id="pw-doc-nonroad" class="pw-file-input" accept=".jpg,.jpeg,.png,.webp,.gif,image/*" multiple>
             <span class="pw-err-msg" id="pw-err-doc-nonroad">Please upload this document.</span>
           </div>
         </div>
@@ -648,6 +648,11 @@
     var el = document.getElementById(id);
     return el && el.files && el.files[0] ? el.files[0].name : '';
   }
+  function getFileNames(id) {
+    var el = document.getElementById(id);
+    if (!el || !el.files || !el.files.length) return '';
+    return Array.prototype.map.call(el.files, function (f) { return f.name; }).join(', ');
+  }
 
   /* ── error display ── */
   function fieldErr(inputId, msg) {
@@ -730,19 +735,38 @@
       if (!val('pw-vin'))   { fieldErr('pw-vin',   'This field is required.'); ok = false; }
 
     } else if (n === 3) {
-      var docFields = [
-        { id: 'pw-doc-trailer', required: true  },
-        { id: 'pw-doc-nonroad', required: true  },
-        { id: 'pw-doc-event',   required: true  },
-        { id: 'pw-doc-club',    required: false },
+      var MAX_IMG_KB = 200;
+      // Image fields (Vehicle on Trailer, Proof of Non-Road Use) — multiple, each ≤200KB
+      var imgFields = [
+        { id: 'pw-doc-trailer', required: true },
+        { id: 'pw-doc-nonroad', required: true },
       ];
-      docFields.forEach(function (f) {
+      imgFields.forEach(function (f) {
+        var input = document.getElementById(f.id);
+        var errId = 'pw-err-' + f.id.slice(3);
+        if (!input || !input.files || input.files.length === 0) {
+          if (f.required) { spanErr(errId, 'Please upload at least one image.'); ok = false; }
+          return;
+        }
+        for (var i = 0; i < input.files.length; i++) {
+          var file  = input.files[i];
+          var isImg = file.type.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
+          if (!isImg)                          { spanErr(errId, 'Only image files (JPG, PNG, etc.) are accepted.'); ok = false; return; }
+          if (file.size > MAX_IMG_KB * 1024)   { spanErr(errId, 'Each image must be under ' + MAX_IMG_KB + ' KB.'); ok = false; return; }
+        }
+      });
+      // PDF fields (Event Registration, Racing Club Membership) — single PDF
+      var pdfFields = [
+        { id: 'pw-doc-event', required: true  },
+        { id: 'pw-doc-club',  required: false },
+      ];
+      pdfFields.forEach(function (f) {
         var input  = document.getElementById(f.id);
         var errId  = 'pw-err-' + f.id.slice(3);
         var result = validateFile(input, f.required);
-        if      (result === 'required') { spanErr(errId, 'Please upload this document.');          ok = false; }
-        else if (result === 'type')     { spanErr(errId, 'Only PDF files are accepted.');           ok = false; }
-        else if (result === 'size')     { spanErr(errId, 'File must be under ' + MAX_MB + 'MB.');  ok = false; }
+        if      (result === 'required') { spanErr(errId, 'Please upload this document.');         ok = false; }
+        else if (result === 'type')     { spanErr(errId, 'Only PDF files are accepted.');          ok = false; }
+        else if (result === 'size')     { spanErr(errId, 'File must be under ' + MAX_MB + 'MB.'); ok = false; }
       });
 
     } else if (n === 4) {
@@ -772,7 +796,7 @@
   }
 
   /* ── collect all form data for API ── */
-  /* Read a file input as a base64 data URL (returns a Promise) */
+  /* Read a single file input as a base64 data URL (returns a Promise) */
   function readFileAsBase64(id) {
     return new Promise(function (resolve) {
       var el = document.getElementById(id);
@@ -783,14 +807,30 @@
       reader.readAsDataURL(el.files[0]);
     });
   }
+  /* Read all selected files as an array of base64 data URLs (for multi-image inputs) */
+  function readFilesAsBase64Array(id) {
+    return new Promise(function (resolve) {
+      var el = document.getElementById(id);
+      if (!el || !el.files || !el.files.length) { resolve([]); return; }
+      var promises = Array.prototype.map.call(el.files, function (file) {
+        return new Promise(function (res) {
+          var reader = new FileReader();
+          reader.onload  = function (e) { res(e.target.result); };
+          reader.onerror = function ()  { res(''); };
+          reader.readAsDataURL(file);
+        });
+      });
+      Promise.all(promises).then(resolve);
+    });
+  }
 
   /* Returns a Promise that resolves to the full form payload */
   function collectFormData() {
     return Promise.all([
-      readFileAsBase64('pw-doc-trailer'),
-      readFileAsBase64('pw-doc-nonroad'),
-      readFileAsBase64('pw-doc-event'),
-      readFileAsBase64('pw-doc-club'),
+      readFilesAsBase64Array('pw-doc-trailer'),  // array of images
+      readFilesAsBase64Array('pw-doc-nonroad'),  // array of images
+      readFileAsBase64('pw-doc-event'),           // single PDF
+      readFileAsBase64('pw-doc-club'),            // single PDF
     ]).then(function (contents) {
       return {
         shop:              window.__pwShop          || '',
@@ -811,14 +851,14 @@
         vin:               val('pw-vin'),
         dmvRegistered:     val('pw-dmv'),
         licensedForRoad:   val('pw-licensed'),
-        docTrailerName:    getFileName('pw-doc-trailer'),
-        docNonRoadName:    getFileName('pw-doc-nonroad'),
+        docTrailerName:    getFileNames('pw-doc-trailer'),  // comma-joined image names
+        docNonRoadName:    getFileNames('pw-doc-nonroad'),  // comma-joined image names
         docEventName:      getFileName('pw-doc-event'),
         docClubName:       getFileName('pw-doc-club'),
-        docTrailerContent: contents[0],
-        docNonRoadContent: contents[1],
-        docEventContent:   contents[2],
-        docClubContent:    contents[3],
+        docTrailerContent: contents[0],  // array of base64 image strings
+        docNonRoadContent: contents[1],  // array of base64 image strings
+        docEventContent:   contents[2],  // single base64 PDF string
+        docClubContent:    contents[3],  // single base64 PDF string
         racingUseOnly:     getRadioVal('pw-c1'),
         notOnPublicRoads:  getRadioVal('pw-c2'),
         notCarbApproved:   getRadioVal('pw-c3'),
@@ -943,20 +983,34 @@
     var vinEl = document.getElementById('pw-vin');
     if (vinEl) vinEl.addEventListener('input', function () { clearFieldErr('pw-vin'); });
 
-    /* Step 3 – validate type & size on selection */
-    ['pw-doc-trailer','pw-doc-nonroad','pw-doc-event'].forEach(function (id) {
+    /* Step 3 – image inputs (trailer, nonroad): validate type & size per file */
+    var MAX_IMG_KB_LV = 200;
+    ['pw-doc-trailer', 'pw-doc-nonroad'].forEach(function (id) {
       var el    = document.getElementById(id);
       var errId = 'pw-err-' + id.slice(3);
       if (el) {
         el.addEventListener('change', function () {
-          var result = validateFile(el, true);
-          if      (!result)               clearSpanErr(errId);
-          else if (result === 'type')     spanErr(errId, 'Only PDF files are accepted.');
-          else if (result === 'size')     spanErr(errId, 'File must be under ' + MAX_MB + 'MB.');
+          clearSpanErr(errId);
+          for (var i = 0; i < el.files.length; i++) {
+            var file  = el.files[i];
+            var isImg = file.type.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
+            if (!isImg)                              { spanErr(errId, 'Only image files (JPG, PNG, etc.) are accepted.'); return; }
+            if (file.size > MAX_IMG_KB_LV * 1024)   { spanErr(errId, 'Each image must be under ' + MAX_IMG_KB_LV + ' KB.'); return; }
+          }
         });
       }
     });
-    /* Optional club doc — only validate type/size if a file is chosen */
+    /* Step 3 – PDF input (event): required */
+    var eventDocEl = document.getElementById('pw-doc-event');
+    if (eventDocEl) {
+      eventDocEl.addEventListener('change', function () {
+        var result = validateFile(eventDocEl, true);
+        if      (!result)               clearSpanErr('pw-err-doc-event');
+        else if (result === 'type')     spanErr('pw-err-doc-event', 'Only PDF files are accepted.');
+        else if (result === 'size')     spanErr('pw-err-doc-event', 'File must be under ' + MAX_MB + 'MB.');
+      });
+    }
+    /* Step 3 – PDF input (club): optional */
     var clubEl = document.getElementById('pw-doc-club');
     if (clubEl) {
       clubEl.addEventListener('change', function () {

@@ -101,21 +101,34 @@ async function processOrder(admin, order, shop) {
     return;
   }
 
-  // Lock the submission immediately to prevent duplicate processing from retried webhooks
-  const locked = await db.waiverSubmission.updateMany({
-    where: { id: submission.id, orderNumber: null },
-    data:  { orderNumber: orderName },
-  });
+  // Lock submission and store orderId via raw SQL (orderGid column added in migration)
+  const affectedRows = await db.$executeRaw`
+    UPDATE "WaiverSubmission"
+    SET "orderNumber" = ${orderName}, "orderGid" = ${orderId}
+    WHERE "id" = ${submission.id} AND "orderNumber" IS NULL
+  `;
 
-  if (locked.count === 0) {
+  if (affectedRows === 0) {
     console.log(`[Webhook] Submission ${submission.id} already claimed by another delivery — skipping`);
     return;
   }
 
   console.log(`[Webhook] Locked submission ${submission.id} for ${orderName}`);
 
-  // PDF already generated on form submit — just save existing URL to order metafield
-  const pdfUrl = submission.orderPdfUrl?.startsWith("http") ? submission.orderPdfUrl : null;
+  // PDF is generated in background after form submit (image upload + PDF generation can take 1-2 min).
+  // Poll DB until orderPdfUrl is ready (max 2 minutes: 24 polls × 5s).
+  let pdfUrl = submission.orderPdfUrl?.startsWith("http") ? submission.orderPdfUrl : null;
+
+  if (!pdfUrl) {
+    console.log(`[Webhook] PDF not ready yet — polling DB for up to 2 minutes…`);
+    for (let attempt = 0; attempt < 24 && !pdfUrl; attempt++) {
+      await new Promise((r) => setTimeout(r, 5000));
+      const refreshed = await db.waiverSubmission.findUnique({ where: { id: submission.id } });
+      pdfUrl = refreshed?.orderPdfUrl?.startsWith("http") ? refreshed.orderPdfUrl : null;
+      if (pdfUrl) console.log(`[Webhook] PDF ready after ${(attempt + 1) * 5}s`);
+    }
+    if (!pdfUrl) console.warn(`[Webhook] PDF still not ready after 2 min for submission ${submission.id}`);
+  }
 
   if (orderId && pdfUrl) {
     try {

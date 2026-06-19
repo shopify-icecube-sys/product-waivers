@@ -2,7 +2,7 @@
  * Uploads a PDF Buffer to Shopify Content → Files via staged upload.
  * Returns the permanent CDN URL of the uploaded file.
  */
-export async function uploadPdfBuffer(admin, buffer, filename) {
+export async function uploadPdfBuffer(admin, buffer, filename, mimeType = "application/pdf") {
   // 1. Request a staged upload target
   const stagedRes = await admin.graphql(
     `#graphql
@@ -20,7 +20,7 @@ export async function uploadPdfBuffer(admin, buffer, filename) {
       variables: {
         input: [{
           filename,
-          mimeType:   "application/pdf",
+          mimeType,
           httpMethod: "POST",
           resource:   "FILE",
           fileSize:   String(buffer.length),
@@ -39,7 +39,7 @@ export async function uploadPdfBuffer(admin, buffer, filename) {
   // 2. POST binary to the staged URL (Google Cloud Storage)
   const form = new FormData();
   for (const { name, value } of target.parameters) form.append(name, value);
-  form.append("file", new Blob([buffer], { type: "application/pdf" }), filename);
+  form.append("file", new Blob([buffer], { type: mimeType }), filename);
 
   const uploadRes = await fetch(target.url, { method: "POST", body: form });
   if (!uploadRes.ok) throw new Error(`Staged upload failed: HTTP ${uploadRes.status}`);

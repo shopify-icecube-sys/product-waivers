@@ -101,7 +101,7 @@ function fmt(d) {
     hour: "2-digit", minute: "2-digit",
   });
 }
-function dash(v) { return v || "—"; }
+function dash(v) { return v || "NA"; }
 
 function YN({ v }) {
   if (v === "yes") return <Text as="span" tone="success" fontWeight="bold">Yes</Text>;
@@ -119,11 +119,19 @@ function Field({ label, value }) {
 }
 
 function DocLink({ content, filename }) {
-  if (!filename) return <Text as="span">—</Text>;
+  if (!filename) return <Text as="span" tone="subdued">NA</Text>;
 
-  const isUrl       = content?.startsWith("https://");
-  const isUploading = content === "__uploading__";
-  const isBase64    = content?.startsWith("data:");
+  // Detect JSON array of image CDN URLs (stored for trailer/nonroad image uploads)
+  let imageUrls = null;
+  if (content?.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(content);
+      if (Array.isArray(parsed) && parsed.length > 0) imageUrls = parsed;
+    } catch {}
+  }
+
+  const isUrl    = !imageUrls && content?.startsWith("https://");
+  const isBase64 = !imageUrls && content?.startsWith("data:");
 
   const downloadLegacy = () => {
     const a = document.createElement("a");
@@ -137,21 +145,26 @@ function DocLink({ content, filename }) {
   return (
     <BlockStack gap="100">
       <Text as="span" variant="bodySm" tone="subdued" fontWeight="bold">{filename}</Text>
-      {isUrl ? (
+      {imageUrls ? (
+        <InlineStack gap="200" wrap>
+          {imageUrls.map((url, i) => (
+            <Box key={i}>
+              <Button size="micro" url={url} external>
+                View Image{imageUrls.length > 1 ? ` ${i + 1}` : ""}
+              </Button>
+            </Box>
+          ))}
+        </InlineStack>
+      ) : isUrl ? (
         <InlineStack gap="200" blockAlign="center">
           <Button size="micro" url={content} external>View PDF</Button>
-        </InlineStack>
-      ) : isUploading ? (
-        <InlineStack gap="200" blockAlign="center">
-          <Spinner size="small" />
-          <Text as="span" variant="bodySm" tone="subdued">Uploading…</Text>
         </InlineStack>
       ) : isBase64 ? (
         <InlineStack>
           <Button size="micro" onClick={downloadLegacy}>⬇ Download PDF</Button>
         </InlineStack>
       ) : (
-        <Text as="span" variant="bodySm" tone="subdued">Not stored</Text>
+        <Text as="span" variant="bodySm" tone="subdued">NA</Text>
       )}
     </BlockStack>
   );

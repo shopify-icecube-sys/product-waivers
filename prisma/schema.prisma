@@ -88,6 +88,7 @@ model WaiverSubmission {
 
   // Order-linked PDF
   orderNumber       String?
+  orderGid          String?  // Shopify order GID stored by webhook (gid://shopify/Order/...)
   orderPdfUrl       String?
 
   @@index([shop])
