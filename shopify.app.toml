@@ -2,7 +2,7 @@
 
 client_id = "f0d6b321c4656f11dfeb7953d26abff6"
 name = "Product Waivers"
-application_url = "https://example.com"
+application_url = "https://valvetronic-form.icecubedev.com"
 embedded = true
 
 [build]
@@ -16,7 +16,7 @@ topics = ["orders/create"]
 uri = "/webhooks/orders/create"
 
 [app_proxy]
-url = "https://example.com"
+url = "https://valvetronic-form.icecubedev.com"
 subpath = "product-waivers"
 prefix = "apps"
 
@@ -25,4 +25,4 @@ prefix = "apps"
 scopes = "write_products,read_themes,write_files,read_orders,write_orders,read_customers"
 
 [auth]
-redirect_urls = [ "https://example.com/api/auth" ]
+redirect_urls = [ "https://valvetronic-form.icecubedev.com/api/auth" ]
